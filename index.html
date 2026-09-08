@@ -1,0 +1,3000 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>金剛住機 スケジュール管理（試作）</title>
+<style>
+:root{
+  --navy:#1f3556; --navy-2:#2a4670; --accent:#e8792b; --accent-d:#cf6519;
+  --bg:#f4f6f9; --panel:#ffffff; --line:#e3e8ef; --line-2:#eef2f7;
+  --tx:#1b2430; --tx-2:#5b6777; --tx-3:#8b95a4;
+  --ok:#22a06b; --warn:#e8a020; --danger:#d94a4a; --info:#2f6fd0;
+  --r:12px; --sh:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.04);
+  --sh-2:0 8px 28px rgba(16,24,40,.14);
+}
+html[data-theme="dark"]{
+  --navy:#16233a; --bg:#11151c; --panel:#1a212b; --line:#2a3441; --line-2:#232c38;
+  --tx:#e8edf4; --tx-2:#a4b0c0; --tx-3:#7c8898;
+  --sh:0 1px 2px rgba(0,0,0,.4); --sh-2:0 8px 28px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,-apple-system,sans-serif;
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:var(--info)}
+.app{display:flex;min-height:100vh}
+
+/* ---------- sidebar ---------- */
+.side{width:220px;flex:0 0 220px;background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 16px 14px}
+.brand .mark{width:34px;height:34px;border-radius:9px;background:var(--navy);color:#fff;
+  display:grid;place-items:center;font-weight:700;font-size:16px}
+.brand b{display:block;font-size:15px;letter-spacing:.02em}
+.brand span{display:block;font-size:10px;color:var(--tx-3);letter-spacing:.18em}
+.nav{padding:6px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;
+  color:var(--tx-2);font-size:13.5px;text-align:left;transition:.12s}
+.nav button:hover{background:var(--line-2);color:var(--tx)}
+.nav button.on{background:var(--navy);color:#fff;font-weight:600}
+.nav button .ic{width:18px;text-align:center;opacity:.9}
+.nav button .badge{margin-left:auto;background:var(--accent);color:#fff;font-size:11px;font-weight:700;
+  min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;padding:0 6px}
+.nav button.on .badge{background:#fff;color:var(--navy)}
+.modesw{margin:2px 12px 8px;padding:4px;background:var(--line-2);border-radius:11px;display:flex;gap:3px}
+.modesw button{flex:1;padding:7px 4px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--tx-2)}
+.modesw button.on{background:var(--panel);color:var(--navy);box-shadow:var(--sh)}
+html[data-theme="dark"] .modesw button.on{color:var(--tx)}
+.mesel{margin:0 12px 10px;display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line);
+  border-radius:11px;background:var(--panel)}
+.mesel select{flex:1;min-width:0;border:none;background:none;outline:none;font-weight:700;font-size:13.5px}
+.meband{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;
+  background:linear-gradient(90deg,rgba(232,121,43,.10),transparent);border:1px solid var(--line)}
+.meband b{font-size:14px}
+.tl{display:flex;flex-direction:column;gap:0}
+.tlrow{display:flex;gap:12px}
+.tlrow .tm{width:64px;flex:0 0 64px;text-align:right;font-size:12px;color:var(--tx-3);padding-top:12px}
+.tlrow .ln{width:14px;flex:0 0 14px;display:flex;flex-direction:column;align-items:center}
+.tlrow .ln i{width:9px;height:9px;border-radius:50%;background:var(--line);margin-top:16px}
+.tlrow .ln s{flex:1;width:2px;background:var(--line);display:block}
+.tlrow .bx{flex:1;min-width:0;padding:8px 0 14px}
+.tlcard{border:1px solid var(--line);border-left:4px solid var(--info);border-radius:11px;padding:11px 13px;
+  background:var(--panel);cursor:pointer;box-shadow:var(--sh)}
+.tlcard:hover{background:var(--line-2)}
+.tlcard b{font-size:14px;display:block}
+.tlcard .m{font-size:11.5px;color:var(--tx-3);margin-top:3px}
+.tlmove{font-size:12px;color:var(--tx-2);background:repeating-linear-gradient(45deg,rgba(140,152,168,.16) 0 5px,transparent 5px 10px);
+  border:1px dashed var(--line);border-radius:9px;padding:7px 11px}
+.side-foot{margin-top:auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
+  border-top:1px solid var(--line);color:var(--tx-3);font-size:11.5px}
+.side-foot button{width:30px;height:30px;border-radius:50%;background:var(--line-2);display:grid;place-items:center}
+
+/* ---------- main ---------- */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:14px;padding:18px 22px 10px;flex-wrap:wrap}
+.top h1{margin:0;font-size:20px;letter-spacing:.01em}
+.top p{margin:2px 0 0;color:var(--tx-3);font-size:12.5px}
+.top .sp{margin-left:auto}
+.datenav{display:flex;align-items:center;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;overflow:hidden;box-shadow:var(--sh)}
+.datenav button{padding:8px 12px;color:var(--tx-2)}
+.datenav button:hover{background:var(--line-2)}
+.datenav .d{padding:5px 16px;text-align:center;min-width:112px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+.datenav .d b{display:block;font-size:16px;line-height:1.2}
+.datenav .d span{display:block;font-size:10.5px;color:var(--tx-3)}
+.btn{padding:9px 16px;border-radius:10px;background:var(--panel);border:1px solid var(--line);
+  font-size:13px;font-weight:600;box-shadow:var(--sh);transition:.12s}
+.btn:hover{background:var(--line-2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(232,121,43,.3)}
+.btn.pri:hover{background:var(--accent-d)}
+.btn.gh{background:transparent;box-shadow:none}
+.btn.sm{padding:6px 11px;font-size:12px;border-radius:8px;box-shadow:none}
+.btn.dg{color:var(--danger);border-color:#f0c9c9}
+.body{padding:6px 22px 40px;display:flex;flex-direction:column;gap:16px}
+
+/* ---------- cards ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--info);
+  border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)}
+.stat .l{font-size:12px;color:var(--tx-2);display:flex;align-items:center;gap:4px}
+.stat .chev{margin-left:auto;color:var(--tx-3);font-size:15px;line-height:1}
+.stat.click{cursor:pointer;transition:.12s}
+.stat.click:hover{background:var(--line-2);transform:translateY(-1px);box-shadow:0 4px 14px rgba(16,24,40,.10)}
+.stat.click:active{transform:none}
+.stat .v{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.stat .v small{font-size:12px;font-weight:600;color:var(--tx-3);margin-left:3px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.panel>header{display:flex;align-items:center;gap:10px;padding:14px 16px;flex-wrap:wrap}
+.panel>header h2{margin:0;font-size:15px}
+.panel>header .hint{font-size:11.5px;color:var(--tx-3)}
+.panel>header .sp{margin-left:auto}
+.pad{padding:0 16px 16px}
+.empty{padding:34px 16px;text-align:center;color:var(--tx-3);font-size:13px}
+
+/* ---------- legend ---------- */
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:0 16px 12px;font-size:11.5px;color:var(--tx-2)}
+.legend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
+.legend .tv{position:static;width:14px;height:9px;border-radius:2px;display:inline-block;margin-right:5px;vertical-align:-1px;
+  background:repeating-linear-gradient(45deg,#b9c2ce 0 3px,transparent 3px 6px);border:1px solid #cbd3dd}
+
+/* ---------- gantt ---------- */
+.gantt{overflow-x:auto;border-top:1px solid var(--line)}
+.g-in{min-width:1000px}
+.g-head{display:flex;border-bottom:1px solid var(--line);background:var(--line-2)}
+.g-head .lead{width:190px;flex:0 0 190px;border-right:1px solid var(--line)}
+.g-head .cells{display:flex;flex:1}
+.g-head .cells div{flex:1;text-align:center;font-size:11.5px;color:var(--tx-3);padding:6px 0;border-left:1px solid var(--line)}
+.g-row{display:flex;border-bottom:1px solid var(--line-2);min-height:70px}
+.g-row:last-child{border-bottom:none}
+.g-row .lead{width:190px;flex:0 0 190px;border-right:1px solid var(--line);display:flex;align-items:flex-start;
+  gap:9px;padding:11px 12px}
+.av{width:30px;height:30px;border-radius:9px;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;flex:0 0 30px}
+.g-row .who b{display:block;font-size:13.5px}
+.g-row .cnt{margin-left:auto;text-align:right;font-size:10.5px;color:var(--tx-3);line-height:1.45;white-space:nowrap}
+.track{position:relative;flex:1;background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px var(--colw))}
+.ev{position:absolute;border-radius:8px;padding:4px 7px;color:#fff;overflow:hidden;
+  cursor:pointer;box-shadow:0 1px 4px rgba(16,24,40,.2);min-width:34px}
+.ev b{display:block;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev span{display:block;font-size:10px;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev.tent{background:transparent!important;border:1.5px dashed #98a4b3;color:var(--tx-2)}
+.ev.dup{outline:2px solid var(--danger);outline-offset:1px}
+.ev.ext{background:repeating-linear-gradient(135deg,rgba(124,136,152,.18) 0 6px,rgba(124,136,152,.06) 6px 12px)!important;
+  border:1.5px solid #97a2b0;color:var(--tx-2);box-shadow:none}
+.g-row .lead{align-items:flex-start}
+.g-row .lead .badge-dup{display:inline-block;margin-top:4px;font-size:10px;font-weight:700;color:#fff;
+  background:var(--danger);border-radius:6px;padding:1px 6px;white-space:nowrap}
+.g-row .who{min-width:0}
+.tv{position:absolute;border-radius:5px;cursor:pointer;
+  background:repeating-linear-gradient(45deg,rgba(140,152,168,.45) 0 4px,rgba(140,152,168,.13) 4px 8px);
+  border:1px solid rgba(140,152,168,.5);font-size:9.5px;color:var(--tx-2);display:grid;place-items:center;overflow:hidden}
+.now{position:absolute;top:0;bottom:0;width:2px;background:var(--danger);z-index:3}
+.now::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--danger)}
+
+/* ---------- generic table ---------- */
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11.5px;color:var(--tx-3);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line-2);font-size:13px;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--line-2)}
+
+/* ---------- chips / tags ---------- */
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.tag.g{background:rgba(34,160,107,.13);color:var(--ok)}
+.tag.o{background:rgba(232,121,43,.14);color:var(--accent-d)}
+.tag.r{background:rgba(217,74,74,.13);color:var(--danger)}
+.tag.b{background:rgba(47,111,208,.12);color:var(--info)}
+.tag.n{background:var(--line-2);color:var(--tx-2)}
+.avs{display:flex;gap:-4px}
+.avs .av{width:24px;height:24px;font-size:11px;border-radius:7px;margin-right:-5px;border:2px solid var(--panel)}
+.avs .av:last-child{margin-right:0}
+
+/* ---------- forms ---------- */
+.f{display:flex;flex-direction:column;gap:5px}
+.f>label{font-size:11.5px;font-weight:600;color:var(--tx-2)}
+.f input,.f select,.f textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
+  background:var(--panel);outline:none;transition:.12s}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,121,43,.14)}
+.f textarea{resize:vertical;min-height:66px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.hintline{font-size:11px;color:var(--tx-3)}
+.pick{display:flex;flex-wrap:wrap;gap:7px}
+.pick button{display:flex;align-items:center;gap:6px;padding:5px 11px 5px 5px;border-radius:999px;
+  border:1.5px solid var(--line);background:var(--panel);font-size:12.5px;color:var(--tx-2);transition:.12s}
+.pick button .av{width:22px;height:22px;font-size:11px;border-radius:7px;opacity:.45}
+.pick button.on{border-color:var(--accent);background:rgba(232,121,43,.09);color:var(--tx);font-weight:600}
+.pick button.on .av{opacity:1}
+.pick.plain button{padding:6px 13px}
+.pick.plain button.on{border-color:var(--navy);background:var(--navy);color:#fff}
+
+/* ---------- modal ---------- */
+.ov{position:fixed;inset:0;background:rgba(16,24,40,.5);backdrop-filter:blur(2px);z-index:60;
+  display:grid;place-items:center;padding:20px}
+.modal{background:var(--panel);border-radius:16px;box-shadow:var(--sh-2);width:100%;max-width:660px;
+  max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.modal.wide{max-width:820px}
+.modal>header{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal>header h3{margin:0;font-size:16px}
+.modal>header .x{margin-left:auto;width:32px;height:32px;border-radius:8px;color:var(--tx-3);font-size:18px}
+.modal>header .x:hover{background:var(--line-2)}
+.modal .content{padding:18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.modal>footer{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--line);background:var(--line-2)}
+.modal>footer .sp{margin-left:auto}
+.sec{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.sec>h4{margin:0;font-size:12.5px;color:var(--tx-2);display:flex;align-items:center;gap:8px}
+.sec>h4 .sp{margin-left:auto}
+
+/* ---------- todo ---------- */
+.todo{display:flex;gap:11px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.todo+.todo{margin-top:8px}
+.todo.done{opacity:.5}
+.todo .ck{width:20px;height:20px;flex:0 0 20px;border:1.8px solid var(--line);border-radius:6px;margin-top:2px;
+  display:grid;place-items:center;color:#fff;font-size:12px;transition:.12s}
+.todo.done .ck{background:var(--ok);border-color:var(--ok)}
+.todo .bd{flex:1;min-width:0}
+.todo .ttl{font-size:13.5px;font-weight:600}
+.todo.done .ttl{text-decoration:line-through}
+.todo .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:5px;font-size:11px;color:var(--tx-3)}
+.todo .acts{display:flex;gap:5px;align-items:flex-start}
+.subs{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.sub{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx-2)}
+.sub .ck{width:15px;height:15px;flex:0 0 15px;border-radius:4px;font-size:9px;margin:0}
+.sub.done{text-decoration:line-through;opacity:.55}
+.sub.done .ck{background:var(--ok);border-color:var(--ok)}
+.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;background:var(--ok)}
+
+/* ---------- week ---------- */
+.wk{overflow-x:auto;border-top:1px solid var(--line)}
+.wk table{min-width:920px}
+.wk th{padding:8px;text-align:center;border-left:1px solid var(--line-2)}
+.wk th:first-child{text-align:left;width:150px;border-left:none}
+.wk th.sat{color:var(--info)} .wk th.sun{color:var(--danger)}
+.wk td{border-left:1px solid var(--line-2);vertical-align:top;min-width:110px}
+.wk td:first-child{border-left:none}
+.wchip{display:block;width:100%;text-align:left;border-radius:7px;padding:4px 6px;color:#fff;font-size:10.5px;
+  margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.wchip.tent{background:transparent!important;border:1.2px dashed #98a4b3;color:var(--tx-2)}
+.wchip.ext{background:repeating-linear-gradient(135deg,rgba(124,136,152,.18) 0 6px,rgba(124,136,152,.06) 6px 12px)!important;
+  border:1px solid #97a2b0;color:var(--tx-2)}
+
+.bell{position:relative;padding:9px 12px}
+.bellct{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;border-radius:10px;background:var(--danger);
+  color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 5px}
+.bellct:empty{display:none}
+.pipe{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.pstep{flex:1;min-width:86px;border:1px solid var(--line);border-radius:11px;padding:9px 6px;background:var(--panel);
+  display:flex;flex-direction:column;align-items:center;gap:3px;transition:.12s}
+.pstep:hover{background:var(--line-2)}
+.pstep.on{border-color:var(--navy);box-shadow:0 0 0 2px rgba(31,53,86,.15)}
+.pstep i{width:8px;height:8px;border-radius:50%}
+.pstep b{font-size:11.5px;font-weight:600;white-space:nowrap}
+.pstep s{text-decoration:none;font-size:17px;font-weight:700}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.mono{font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--navy);color:#fff;
+  padding:11px 20px;border-radius:11px;box-shadow:var(--sh-2);z-index:90;font-size:13px;font-weight:600}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters select,.filters input{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);outline:none}
+@media(max-width:820px){
+  .side{position:fixed;left:0;top:0;z-index:50;transform:translateX(-100%);transition:.2s;box-shadow:var(--sh-2)}
+  .side.open{transform:none}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .body{padding:6px 14px 40px} .top{padding:14px 14px 8px}
+}
+.menu-btn{display:none}
+@media(max-width:820px){.menu-btn{display:inline-flex}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="toast"></div>
+<script>
+/* ============================================================
+   金剛住機 スケジュール管理  —  データ層
+   ============================================================ */
+const KEY = 'kongo_sched_v2';
+const ORIGIN_DEFAULT = '山口県下関市貴船町4-1-23';
+
+const CATS = {
+  '修理':      '#e8792b',
+  '工事':      '#2f6fd0',
+  '現場調査':  '#d4a017',
+  '点検':      '#17a2a2',
+  '保守':      '#8b5cf6',
+  '定期清掃':  '#22a06b',
+  '日常清掃':  '#34c38f',
+  '巡回点検':  '#d63384',
+  '打合せ':    '#6b7280',
+  'その他':    '#9aa3ae'
+};
+const PRIOS = { '至急':'r', '高':'o', '中':'n', '低':'n' };
+/* 案件パイプライン（受付→入金までの一本道）。滞留日数の既定値つき */
+const STAGES = [
+  {k:'受付',     sla:2,  g:'前工程'},
+  {k:'現調',     sla:3,  g:'前工程'},
+  {k:'見積作成', sla:3,  g:'見積'},
+  {k:'見積提出', sla:14, g:'見積'},
+  {k:'受注',     sla:14, g:'工事'},
+  {k:'施工中',   sla:30, g:'工事'},
+  {k:'完工',     sla:7,  g:'請求', key:1},   // ★ 完工したのに請求していない＝取りこぼしの本丸
+  {k:'請求',     sla:40, g:'請求', key:1},   // ★ 請求したのに入金がない
+  {k:'入金',     sla:7,  g:'完了'},
+  {k:'完了',     sla:0,  g:'完了'},
+  {k:'保留',     sla:30, g:'その他'},
+  {k:'失注',     sla:0,  g:'その他'}
+];
+const STAGE_KEYS = STAGES.map(x => x.k);
+const STATUS = STAGE_KEYS;
+const stageDef = k => STAGES.find(x => x.k === k) || STAGES[0];
+const STAGE_COLOR = {'受付':'#9aa3ae','現調':'#d4a017','見積作成':'#e8792b','見積提出':'#e8a020',
+  '受注':'#2f6fd0','施工中':'#17a2a2','完工':'#8b5cf6','請求':'#d63384','入金':'#22a06b',
+  '完了':'#6b7280','保留':'#9aa3ae','失注':'#c0c6cf'};
+const PAY_METHODS = ['振込','現金','クレジット','相殺','その他'];
+const money = n => '¥' + (Number(n)||0).toLocaleString('ja-JP');
+
+/* 下関市貴船町を起点にした車移動の目安（分）。設定画面で編集可 */
+const TRAVEL_TABLE_DEFAULT = [
+  {kw:'貴船町', m:2},   {kw:'細江町', m:5},   {kw:'竹崎町', m:5},
+  {kw:'岬之町', m:6},   {kw:'東大和町', m:7}, {kw:'南部町', m:8},
+  {kw:'唐戸町', m:8},   {kw:'阿弥陀寺町', m:10}, {kw:'赤間町', m:9},
+  {kw:'上田中町', m:7}, {kw:'幡生', m:11},    {kw:'武久町', m:12},
+  {kw:'一の宮', m:14},  {kw:'伊倉', m:15},    {kw:'綾羅木', m:17},
+  {kw:'安岡', m:21},    {kw:'福江', m:23},    {kw:'吉見', m:26},
+  {kw:'長府', m:19},    {kw:'王司', m:24},    {kw:'清末', m:27},
+  {kw:'小月', m:30},    {kw:'吉田', m:33},    {kw:'菊川町', m:31},
+  {kw:'豊田町', m:46},  {kw:'豊浦町川棚', m:35}, {kw:'豊浦町小串', m:31},
+  {kw:'豊浦町', m:33},  {kw:'豊北町', m:55},  {kw:'下関市', m:20, gen:1},
+  {kw:'山陽小野田', m:45}, {kw:'宇部市', m:55}, {kw:'美祢市', m:60},
+  {kw:'山口市', m:70},  {kw:'長門市', m:65},  {kw:'門司区', m:26},
+  {kw:'小倉北区', m:40},{kw:'小倉南区', m:46},{kw:'戸畑区', m:47},
+  {kw:'八幡東区', m:52},{kw:'八幡西区', m:57},{kw:'若松区', m:55},
+  {kw:'北九州市', m:45, gen:1}
+];
+
+const uid = p => p + '_' + Math.random().toString(36).slice(2, 9);
+const SEED_U = '2020-01-01T00:00:00.000Z';
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+const today = () => iso(new Date());
+const WD = ['日','月','火','水','木','金','土'];
+const parseD = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addD = (s, n) => { const d = parseD(s); d.setDate(d.getDate()+n); return iso(d); };
+const fmtD = s => { const d = parseD(s); return (d.getMonth()+1)+'/'+d.getDate()+'（'+WD[d.getDay()]+'）'; };
+const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
+const toHM  = m => pad(Math.floor(((m%1440)+1440)%1440/60)) + ':' + pad(((m%60)+60)%60);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+
+/* ============================================================
+   カテゴリー初期値（実データは同期で取り込みます）
+   ============================================================ */
+const GT_CATS = [
+  {name:'長期ビジョンタスク',    color:'#8b5cf6'},
+  {name:'急ぐ要件',              color:'#d94a4a'},
+  {name:'請求',                  color:'#2f6fd0'},
+  {name:'見積　作成',            color:'#e8792b'},
+  {name:'工事　進行中・予定確定',color:'#22a06b'},
+  {name:'工事　準備中',          color:'#17a2a2'},
+  {name:'見積　回答待',          color:'#d4a017'},
+  {name:'修理',                  color:'#d63384'},
+  {name:'継続中案件',            color:'#6b7280'}
+];
+/* due は Google 側が「◯週間前」表示のため推定値。編集して調整してください */
+const GT_TODOS = [];   /* 公開版：実データは含めません（同期で取り込みます） */
+/* カテゴリー＆ToDoを（重複を避けて）流し込む。既存データにも一度だけ適用 */
+function importGTasks(d, owner){
+  GT_CATS.forEach((c,i) => { if(!d.cats.some(x => x.name === c.name)) d.cats.push({id:'gc'+(i+1), name:c.name, color:c.color}); });
+  GT_TODOS.forEach((g,i) => {
+    if(d.todos.some(x => x.title === g.t)) return;
+    const cat = d.cats.find(c => c.name === g.c);
+    d.todos.push({id:'gt'+(i+1), title:g.t, scope:'personal', jobId:'', who:[owner],
+      due:g.d||'', prio:g.p||'中', done:false, cat:cat?cat.id:'', memo:'',
+      subs:(g.subs||[]).map(x=>({t:x, d:false})), created:today()});
+  });
+  const byName = n => (d.cats.find(c => c.name === n)||{}).id || '';
+  d.tpl.forEach(t => {
+    if(t.name === '給湯器交換') t.cat = byName('修理');
+    if(t.name === '現場調査')   t.cat = byName('見積　作成');
+    if(t.name === 'リフォーム（浴室）') t.cat = byName('工事　準備中');
+  });
+  return d;
+}
+
+/* ---------- 初期データ ---------- */
+function seed(){
+  const st = [
+    {id:'s1', name:'担当1', full:'', role:'', color:'#2f6fd0', active:true},
+    {id:'s2', name:'担当2', full:'', role:'', color:'#22a06b', active:true},
+    {id:'s3', name:'担当3', full:'', role:'', color:'#e8792b', active:true},
+    {id:'s4', name:'担当4', full:'', role:'', color:'#8b5cf6', active:true},
+    {id:'s5', name:'担当5', full:'', role:'', color:'#d63384', active:true},
+    {id:'s6', name:'担当6', full:'', role:'', color:'#17a2a2', active:true}
+  ];
+  const t = today();
+  const jobs = [];
+  const sch = [];
+  const todos = [];
+  const tpl = [
+    {id:'p1', name:'給湯器交換', cat:'c3', items:['現地調査・寸法確認','見積書の作成・提出','機器の発注','施工日の調整','施工','完了写真の送付','請求書の発行']},
+    {id:'p2', name:'現場調査', cat:'c3', items:['お客様へ日程連絡','図面・履歴の確認','現地写真の撮影','所見メモの作成','見積へ反映']},
+    {id:'p3', name:'リフォーム（浴室）', cat:'c3', items:['現調・採寸','プラン作成','見積提出','契約','着工前挨拶','施工','完了検査','引渡し']}
+  ];
+  return importGTasks({
+    staff: st, jobs, sch, todos, tpl, cats: [], imported:'gtasks1', log: [], deposits: [], closes: [], tomb: [], rev: 0, gcal: [],
+    reports: [], atd: [],
+    cfg: {
+      apiKey:'', origin: ORIGIN_DEFAULT, travel: TRAVEL_TABLE_DEFAULT,
+      autoTravel:true, defBuffer:15, wStart:8, wEnd:19, theme:'light', keepDays:30, actor:'', gasUrl:'', gasToken:'', lastSync:'',
+      sla: {}, cashLimit: 100000, cal: {}, calBack: 7, calFwd: 60,
+      pollSec: 30, seenAt: '', webNotify: false, mailNotify: false, mailTo: []
+    }
+  }, 's1');
+}
+/* 初期データは「一番古い更新」として扱う（他端末の実データを壊さないため） */
+function markSeed(d){
+  ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd'].forEach(k =>
+    (d[k]||[]).forEach(r => { if(!r._u) r._u = SEED_U; }));
+  return d;
+}
+
+let DB = load();
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return markSeed(seed());
+    const d = JSON.parse(raw);
+    const base = markSeed(seed());
+    d.cfg = Object.assign({}, base.cfg, d.cfg||{});
+    if(!d.cfg.travel || !d.cfg.travel.length) d.cfg.travel = TRAVEL_TABLE_DEFAULT;
+    ['staff','jobs','sch','todos','tpl','reports','atd','cats','log','deposits','closes','tomb'].forEach(k => { if(!Array.isArray(d[k])) d[k] = base[k]||[]; });
+    if(typeof d.rev !== 'number') d.rev = 0;
+    if(!Array.isArray(d.gcal)) d.gcal = [];
+    if(!d.cfg.cal || typeof d.cfg.cal !== 'object') d.cfg.cal = {};
+    const OLD = {'手配中':'受注','対応中':'施工中'};
+    d.jobs.forEach(j => {
+      if(OLD[j.status]) j.status = OLD[j.status];
+      if(STAGE_KEYS.indexOf(j.status) < 0) j.status = '受付';
+      ['est','order','inv'].forEach(k => { if(typeof j[k] !== 'number') j[k] = 0; });
+      ['invNo','invDate','due','owner'].forEach(k => { if(typeof j[k] !== 'string') j[k] = ''; });
+      if(!Array.isArray(j.pays))  j.pays  = [];
+      if(!Array.isArray(j.notes)) j.notes = [];
+      if(!j.stageAt || typeof j.stageAt !== 'object') j.stageAt = {};
+      if(!j.stageAt[j.status]) j.stageAt[j.status] = (j.created||today()) + 'T09:00:00.000Z';
+    });
+    if(!d.cats.length) d.cats = base.cats;
+    if(d.imported !== 'gtasks1'){ d.imported = 'gtasks1'; importGTasks(d, 's1'); }
+    /* 旧形式（単一担当）からの移行 */
+    d.sch.forEach(e => { if(!Array.isArray(e.who)) e.who = e.staffId ? [e.staffId] : []; });
+    d.todos.forEach(t => { if(!Array.isArray(t.who)) t.who = t.staffId ? [t.staffId] : []; if(!Array.isArray(t.subs)) t.subs = [];
+      if(typeof t.cat !== 'string') t.cat = ''; });
+    return d;
+  }catch(e){ return markSeed(seed()); }
+}
+/* 同期対象のコレクション */
+const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd'];
+const APPEND = ['log','closes'];          // 追記のみ（idで重複排除）
+let SNAP = null;                          // key -> JSON（前回保存時の内容）
+
+/* 変更のあったレコードに更新時刻を打ち、消えたレコードは「お墓」に残す */
+function stampChanges(){
+  const now = nowISO();
+  DB.tomb = DB.tomb || [];
+  const first = (SNAP === null);
+  if(first) SNAP = {};
+  const seen = {};
+  COLL.forEach(k => (DB[k]||[]).forEach(r => {
+    if(!r.id) r.id = uid(k.slice(0,2));
+    const key = k + ':' + r.id;
+    seen[key] = 1;
+    const cur = JSON.stringify(r, (kk,v) => (kk === '_u' || kk === '_by') ? undefined : v);
+    if(SNAP[key] !== cur){
+      if(!first || !r._u){ r._u = now; r._by = actor(); }
+      SNAP[key] = cur;
+    }
+  }));
+  if(!first){
+    Object.keys(SNAP).forEach(key => {
+      if(!seen[key]){ delete SNAP[key]; DB.tomb.push({key, at: now}); }
+    });
+  }
+  /* 古いお墓は掃除（90日） */
+  DB.tomb = DB.tomb.filter(t => daysAgo(t.at) < 90);
+}
+function save(){
+  try{ stampChanges(); localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){}
+  if(typeof scheduleSync === 'function') scheduleSync();
+}
+
+/* ---------- 操作者と変更履歴（監査ログ） ---------- */
+function actor(){ return DB.cfg.actor || ''; }
+function actorName(){ const s = staffById(actor()); return s ? (s.full||s.name) : '未設定'; }
+function logIt(type, targetId, title, field, from, to){
+  DB.log = DB.log || [];
+  DB.log.push({id:uid('l'), at: nowISO(), by: actor(), byName: actorName(),
+    type, targetId, title:String(title||''), field:String(field||''),
+    from: from===undefined?'':String(from), to: to===undefined?'':String(to)});
+  if(DB.log.length > 3000) DB.log = DB.log.slice(-3000);
+}
+
+/* ---------- 参照ヘルパ ---------- */
+const staffById = id => DB.staff.find(s => s.id === id);
+const jobById   = id => DB.jobs.find(j => j.id === id);
+const activeStaff = () => DB.staff.filter(s => s.active !== false);
+const catColor = c => CATS[c] || '#9aa3ae';
+/* ToDoカテゴリー */
+const tcatById = id => DB.cats.find(c => c.id === id);
+const tcatName = id => (tcatById(id)||{}).name || '未分類';
+const tcatColor = id => (tcatById(id)||{}).color || '#9aa3ae';
+function tcatTag(id){
+  const c = tcatColor(id);
+  return '<span class="tag" style="background:'+c+'22;color:'+c+'">'+esc(tcatName(id))+'</span>';
+}
+
+/* ---------- Googleカレンダー由来の予定（読み取り専用） ---------- */
+const importedGids = () => new Set(DB.sch.filter(e => e.gid).map(e => e.gid));
+function gcalEvents(date){
+  const done = importedGids();
+  return (DB.gcal||[]).filter(g => g.date === date && !g.allDay && !done.has(g.evId)).map(g => ({
+    id: 'g:' + g.evId + ':' + g.staffId, ext:true, gid:g.evId, calId:g.calId,
+    title: g.title || '（無題）', date: g.date, start: g.start, end: g.end,
+    who: [g.staffId], cat:'外部', tent:false, out:0, back:0,
+    address: g.location||'', note: g.desc||'', guests: g.guests||''
+  }));
+}
+function gcalAllDay(date, staffId){
+  const done = importedGids();
+  return (DB.gcal||[]).filter(g => g.allDay && g.staffId === staffId && !done.has(g.evId) &&
+    g.date <= date && (g.endDate||g.date) >= date);
+}
+/* アプリの予定＋カレンダーの予定（時間指定のみ） */
+const dayEvents = date => DB.sch.filter(e => e.date === date && !e.allDay).concat(gcalEvents(date));
+/* 終日の予定（アプリ＋カレンダー） */
+function allDayItems(date, staffId){
+  const own = DB.sch.filter(e => e.allDay && e.date <= date && (e.endDate||e.date) >= date && e.who.includes(staffId))
+    .map(e => ({title:e.title, ext:false, id:e.id}));
+  const ext = gcalAllDay(date, staffId).map(g => ({title:g.title, ext:true, id:'g:'+g.evId+':'+g.staffId}));
+  return own.concat(ext);
+}
+const hasCal = () => Object.keys(DB.cfg.cal||{}).some(k => DB.cfg.cal[k]);
+
+/* 予定の移動込み占有時間 */
+function span(e){
+  const o = e.out|0, b = e.back|0;
+  return { s: toMin(e.start) - o, e: toMin(e.end) + b, cs: toMin(e.start), ce: toMin(e.end) };
+}
+/* 担当者ごとの重複判定（移動時間込み） */
+function conflicts(date){
+  const list = dayEvents(date).filter(e => !e.tent && !e.allDay);
+  const bad = new Set();
+  for(let i=0;i<list.length;i++) for(let j=i+1;j<list.length;j++){
+    const a = list[i], b = list[j];
+    if(!a.who.some(w => b.who.includes(w))) continue;
+    const A = span(a), B = span(b);
+    if(A.s < B.e && B.s < A.e){ bad.add(a.id); bad.add(b.id); }
+  }
+  return bad;
+}
+function avatar(s, cls){
+  if(!s) return '';
+  return '<span class="av '+(cls||'')+'" style="background:'+s.color+'" title="'+esc(s.full||s.name)+'">'+esc(s.name.slice(0,1))+'</span>';
+}
+function avatars(ids){
+  if(!ids || !ids.length) return '<span class="tag n">未割当</span>';
+  return '<span class="avs">'+ids.map(id => avatar(staffById(id))).join('')+'</span>';
+}
+function whoNames(ids){
+  if(!ids || !ids.length) return '未割当';
+  return ids.map(id => (staffById(id)||{}).name || '?').join('・');
+}
+function toast(msg, undoFn){
+  const el = document.getElementById('toast');
+  if(undoFn){
+    UNDO = undoFn;
+    el.innerHTML = '<div class="toast">'+esc(msg) +
+      '<button onclick="doUndo()" style="margin-left:14px;color:var(--accent);font-weight:700">元に戻す</button></div>';
+    clearTimeout(toast._t); toast._t = setTimeout(()=>{ el.innerHTML=''; UNDO=null; }, 8000);
+  }else{
+    el.innerHTML = '<div class="toast">'+esc(msg)+'</div>';
+    clearTimeout(toast._t); toast._t = setTimeout(()=>{ el.innerHTML=''; }, 2200);
+  }
+}
+let UNDO = null;
+function doUndo(){ if(!UNDO) return; const f = UNDO; UNDO = null;
+  document.getElementById('toast').innerHTML = ''; f(); save(); render(); toast('元に戻しました'); }
+
+/* ---------- 完了・ゴミ箱の保管 ---------- */
+const nowISO = () => new Date().toISOString();
+const dayOf  = iso8601 => (iso8601||'').slice(0,10);
+function daysAgo(iso8601){
+  if(!iso8601) return 0;
+  return Math.floor((new Date(today()+'T00:00:00') - new Date(dayOf(iso8601)+'T00:00:00')) / 86400000);
+}
+const keepDays = () => DB.cfg.keepDays || 30;
+/* 進行中のToDo（完了・削除を除く） */
+const liveTodos = () => DB.todos.filter(t => !t.del && !t.done);
+/* 完了フォルダ */
+const doneTodos = () => DB.todos.filter(t => !t.del && t.done)
+  .sort((a,b) => (b.doneAt||'').localeCompare(a.doneAt||''));
+/* ゴミ箱 */
+const binTodos = () => DB.todos.filter(t => t.del)
+  .sort((a,b) => (b.delAt||'').localeCompare(a.delAt||''));
+/* 保管期限を過ぎたものを自動消去 */
+function purgeOld(){
+  const k = keepDays(); let n = 0;
+  DB.todos = DB.todos.filter(t => {
+    if(t.del  && t.delAt  && daysAgo(t.delAt)  >= k){ n++; return false; }
+    if(t.done && t.doneAt && daysAgo(t.doneAt) >= k){ n++; return false; }
+    return true;
+  });
+  if(n) save();
+  return n;
+}
+/* ============================================================
+   移動時間の算出
+   ============================================================ */
+const Maps = {
+  loading: null, ready: false, err: '',
+  load(){
+    const key = (DB.cfg.apiKey||'').trim();
+    if(!key) return Promise.reject(new Error('APIキーが未設定です'));
+    if(this.ready) return Promise.resolve();
+    if(this.loading) return this.loading;
+    this.loading = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&language=ja&region=JP';
+      s.async = true;
+      s.onload = () => { Maps.ready = true; res(); };
+      s.onerror = () => { Maps.loading = null; rej(new Error('Google Maps を読み込めませんでした（通信制限またはキー不正）')); };
+      document.head.appendChild(s);
+      setTimeout(() => { if(!Maps.ready){ Maps.loading = null; rej(new Error('読み込みがタイムアウトしました')); } }, 12000);
+    });
+    return this.loading;
+  },
+  distance(dest){
+    return this.load().then(() => new Promise((res, rej) => {
+      try{
+        const svc = new google.maps.DistanceMatrixService();
+        svc.getDistanceMatrix({
+          origins: [DB.cfg.origin || ORIGIN_DEFAULT],
+          destinations: [dest],
+          travelMode: google.maps.TravelMode.DRIVING,
+          unitSystem: google.maps.UnitSystem.METRIC,
+          region: 'JP'
+        }, (r, status) => {
+          if(status !== 'OK') return rej(new Error('Maps応答: ' + status));
+          const el = r.rows[0] && r.rows[0].elements[0];
+          if(!el || el.status !== 'OK') return rej(new Error('経路が見つかりません（住所を確認してください）'));
+          res({ min: Math.round(el.duration.value/60), km: +(el.distance.value/1000).toFixed(1), src:'Google' });
+        });
+      }catch(e){ rej(e); }
+    }));
+  }
+};
+/* キーワード表からの推定（オフライン・フォールバック） */
+function estimateTravel(addr){
+  const a = String(addr||'');
+  if(!a.trim()) return null;
+  let hit = null, gen = null;
+  DB.cfg.travel.forEach(r => {
+    if(!r.kw || a.indexOf(r.kw) < 0) return;
+    if(r.gen){ if(!gen) gen = r; return; }              // 市名など広域の一致は最後の手段
+    if(!hit || r.kw.length > hit.kw.length) hit = r;    // より詳細な一致を優先
+  });
+  hit = hit || gen;
+  if(!hit) return null;
+  return { min: hit.m, km: null, src: '目安表（' + hit.kw + '）' };
+}
+/* 統合：Google → 失敗時は目安表 */
+function calcTravel(addr){
+  const fb = estimateTravel(addr);
+  if(!(DB.cfg.apiKey||'').trim()){
+    return fb ? Promise.resolve(fb) : Promise.reject(new Error('APIキー未設定・目安表にも該当なし'));
+  }
+  return Maps.distance(addr).catch(err => {
+    if(fb){ fb.warn = err.message; return fb; }
+    throw err;
+  });
+}
+
+/* ============================================================
+   Googleスプレッドシート同期（Apps Script Web App 経由）
+   ============================================================ */
+const Sync = {
+  busy:false, status:'', 
+  url(){ return (DB.cfg.gasUrl||'').trim(); },
+  ready(){ return !!this.url(); },
+  async call(action, body){
+    if(!this.ready()) throw new Error('同期URLが設定されていません');
+    const res = await fetch(this.url(), {
+      method:'POST', redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},   // プリフライトを避ける
+      body: JSON.stringify(Object.assign({action, token: DB.cfg.gasToken||''}, body))
+    });
+    const txt = await res.text();
+    let j; try{ j = JSON.parse(txt); }catch(e){ throw new Error('応答が不正です（デプロイ設定をご確認ください）'); }
+    return j;
+  },
+  payload(){
+    const o = {rev: DB.rev||0, tomb: DB.tomb||[]};
+    COLL.concat(APPEND).forEach(k => o[k] = DB[k]||[]);
+    return o;
+  },
+  /* リモートの内容を、レコード単位で取り込む（新しい方を採用） */
+  merge(remote){
+    if(!remote) return;
+    const tombAt = {};
+    (DB.tomb||[]).forEach(t => { if(!tombAt[t.key] || t.at > tombAt[t.key]) tombAt[t.key] = t.at; });
+    const rTomb = {};
+    (remote.tomb||[]).forEach(t => { if(!rTomb[t.key] || t.at > rTomb[t.key]) rTomb[t.key] = t.at; });
+
+    COLL.forEach(k => {
+      const arr = DB[k] || (DB[k] = []);
+      const byId = {}; arr.forEach(r => byId[r.id] = r);
+      (remote[k]||[]).forEach(rr => {
+        if(!rr || !rr.id) return;
+        const key = k + ':' + rr.id, lr = byId[rr.id];
+        if(!lr){
+          if(tombAt[key] && tombAt[key] >= (rr._u||'')) return;   // こちらで削除済み
+          arr.push(rr); byId[rr.id] = rr;
+        }else if((rr._u||'') > (lr._u||'')){
+          Object.keys(lr).forEach(x => { if(!(x in rr)) delete lr[x]; });
+          Object.assign(lr, rr);
+        }
+      });
+      /* 相手側で削除されたものを消す（こちらの更新のほうが新しければ残す） */
+      DB[k] = arr.filter(r => {
+        const at = rTomb[k + ':' + r.id];
+        return !(at && at > (r._u||''));
+      });
+    });
+    /* 追記のみのもの（履歴・締め）は id で重複排除して統合 */
+    APPEND.forEach(k => {
+      const arr = DB[k] || (DB[k] = []);
+      const has = {}; arr.forEach(r => has[r.id || (r.month+'|'+r.at)] = 1);
+      (remote[k]||[]).forEach(rr => {
+        const id = rr.id || (rr.month+'|'+rr.at);
+        if(!has[id]){ arr.push(rr); has[id] = 1; }
+      });
+      if(k === 'log') arr.sort((a,b)=>(a.at||'').localeCompare(b.at||''));
+    });
+    /* お墓を統合 */
+    const seenT = {};
+    DB.tomb = (DB.tomb||[]).concat(remote.tomb||[]).filter(t => {
+      const kk = t.key + '|' + t.at;
+      if(seenT[kk]) return false; seenT[kk] = 1; return daysAgo(t.at) < 90;
+    });
+    SNAP = null;   // 次回 save() で作り直す
+  },
+  /* Googleカレンダーの予定を取り込む（読み取り専用） */
+  async calPull(){
+    const cal = DB.cfg.cal || {};
+    const cals = Object.keys(cal).filter(k => cal[k]).map(k => ({staffId:k, calId:cal[k]}));
+    if(!cals.length){ DB.gcal = []; return; }
+    const from = addD(today(), -(DB.cfg.calBack||7));
+    const to   = addD(today(),  (DB.cfg.calFwd||60));
+    const r = await this.call('calPull', {from, to, cals});
+    if(!r.ok) throw new Error(r.error || 'カレンダーを読めませんでした');
+    DB.gcal = r.events || [];
+    DB.cfg.calAt = nowISO();
+    try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){}
+  },
+  async listCalendars(){
+    const r = await this.call('listCalendars');
+    if(!r.ok) throw new Error(r.error || '取得できませんでした');
+    return r.calendars || [];
+  },
+  /* 取り込み → 統合 → 書き戻し。競合したらやり直す */
+  async run(){
+    for(let attempt = 0; attempt < 4; attempt++){
+      const got = await this.call('pull');
+      if(!got.ok) throw new Error(got.error || '取得に失敗しました');
+      this.merge(got.data);
+      DB.rev = got.rev || 0;
+      stampChanges();
+      const put = await this.call('push', {rev: DB.rev, payload: this.payload()});
+      if(put.ok){ DB.rev = put.rev; DB.cfg.lastSync = nowISO();
+        try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){}
+        try{ await this.calPull(); }catch(e){ /* カレンダーは失敗しても本体は続行 */ }
+        return put; }
+      if(!put.conflict) throw new Error(put.error || '書き込みに失敗しました');
+      /* 競合：相手が先に書いたので、取り込み直して再挑戦 */
+    }
+    throw new Error('他の端末と競合しました。少し待ってからもう一度お試しください。');
+  }
+};
+/* ============================================================
+   お知らせ（他の人の更新に気づくための仕組み）
+   ============================================================ */
+const seenAt = () => DB.cfg.seenAt || '';
+function notices(){
+  const me = actor(), since = seenAt(), out = [];
+  const mine = w => !me || (w||[]).includes(me);
+  /* 案件の動き（新規受付・工程・入金など） */
+  (DB.log||[]).forEach(l => {
+    if(!l.at || l.at <= since) return;
+    if(me && l.by === me) return;
+    const isNew = l.field === '新規受付';
+    out.push({at:l.at, by:l.byName||'', kind: isNew ? 'new' : 'job',
+      title: isNew ? '新しい受付：' + l.title : l.title,
+      sub: isNew ? '' : l.field + '　' + (l.from?l.from+' → ':'') + l.to,
+      go: () => { const j = jobById(l.targetId); if(j) openJob(j.id); else go('jobs'); }});
+  });
+  /* 自分に割り当てられた予定 */
+  (DB.sch||[]).forEach(e => {
+    if(!e._u || e._u <= since) return;
+    if(me && e._by === me) return;
+    if(!mine(e.who)) return;
+    out.push({at:e._u, by:(staffById(e._by)||{}).name||'', kind:'sch',
+      title:'予定：' + e.title, sub: fmtD(e.date) + ' ' + e.start + '–' + e.end,
+      go: () => openSch(e.id)});
+  });
+  /* 自分に割り当てられたToDo */
+  (DB.todos||[]).forEach(t => {
+    if(!t._u || t._u <= since || t.del || t.done) return;
+    if(me && t._by === me) return;
+    if(!mine(t.who)) return;
+    out.push({at:t._u, by:(staffById(t._by)||{}).name||'', kind:'todo',
+      title:'ToDo：' + t.title, sub: t.due ? '期限 ' + fmtD(t.due) : '',
+      go: () => openTodo(t.id)});
+  });
+  return out.sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0, 60);
+}
+let NOTES = [];
+function noteCount(){ return NOTES.length; }
+function refreshNotes(prevCount){
+  NOTES = notices();
+  const el = document.getElementById('bellct');
+  if(el) el.textContent = NOTES.length ? NOTES.length : '';
+  if(prevCount !== undefined && NOTES.length > prevCount) webNotify(NOTES.slice(0, NOTES.length - prevCount));
+  return NOTES.length;
+}
+function openNotes(){
+  NOTES = notices();
+  shell('お知らせ' + (NOTES.length ? '（' + NOTES.length + '件）' : ''),
+    (NOTES.length
+      ? '<div class="hintline">前回確認したあとに、他の人が入力・変更した内容です。</div>' +
+        NOTES.map((n,i) =>
+          '<div class="todo" style="border-left:3px solid ' +
+          (n.kind==='new'?'var(--accent)':n.kind==='sch'?'var(--info)':n.kind==='todo'?'var(--ok)':'var(--line)') + '">' +
+          '<div class="bd"><div class="ttl">' +
+            (n.kind==='new'?'🆕 ':n.kind==='sch'?'📌 ':n.kind==='todo'?'✓ ':'✎ ') + esc(n.title) + '</div>' +
+          '<div class="meta">' + (n.sub?'<span>'+esc(n.sub)+'</span>':'') +
+            '<span>'+esc(dayOf(n.at).slice(5).replace('-','/'))+' '+esc((n.at||'').slice(11,16))+'</span>' +
+            (n.by?'<span class="tag n">'+esc(n.by)+'</span>':'') + '</div></div>' +
+          '<div class="acts"><button class="btn sm" onclick="jumpNote('+i+')">開く</button></div></div>').join('')
+      : '<div class="empty">新しいお知らせはありません</div>'),
+    '<div class="sp"></div>' +
+    (NOTES.length ? '<button class="btn pri" onclick="markSeen()">すべて確認済みにする</button>'
+                  : '<button class="btn" onclick="closeM()">閉じる</button>'));
+}
+function jumpNote(i){ const n = NOTES[i]; closeM(); if(n && n.go) n.go(); }
+function markSeen(){ DB.cfg.seenAt = nowISO(); save(); closeM(); refreshNotes(); render(); }
+
+/* ブラウザ通知（画面を開いていない間も端末に出したいとき） */
+function askWebNotify(){
+  if(!('Notification' in window)){ alert('この端末のブラウザは通知に対応していません。'); return; }
+  Notification.requestPermission().then(p => {
+    DB.cfg.webNotify = (p === 'granted'); save(); render();
+    if(p === 'granted') new Notification('金剛住機 スケジュール', {body:'通知を有効にしました'});
+    else alert('通知が許可されませんでした。ブラウザの設定から許可してください。');
+  });
+}
+function webNotify(list){
+  if(!DB.cfg.webNotify || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const n = list.length;
+  const head = list[0];
+  try{
+    new Notification(n > 1 ? '新しい更新が' + n + '件あります' : (head ? head.title : '更新があります'),
+      {body: head ? (head.sub || '') + (head.by ? '　' + head.by : '') : '', tag:'kongo'});
+  }catch(e){}
+}
+
+/* メール通知（Apps Script 経由） */
+function mailTargets(exceptMe){
+  const list = DB.cfg.mailTo && DB.cfg.mailTo.length
+    ? DB.staff.filter(s => DB.cfg.mailTo.includes(s.id))
+    : activeStaff();
+  return list.filter(s => s.mail && (!exceptMe || s.id !== actor())).map(s => s.mail);
+}
+function sendMail(subject, body, staffIds){
+  if(!DB.cfg.mailNotify || !Sync.ready()) return;
+  let to;
+  if(staffIds && staffIds.length){
+    to = DB.staff.filter(s => staffIds.includes(s.id) && s.mail && s.id !== actor()).map(s => s.mail);
+  }else{
+    to = mailTargets(true);
+  }
+  if(!to.length) return;
+  Sync.call('notify', {to, subject, body}).catch(()=>{});
+}
+
+let SYNC_T = null;
+function scheduleSync(){
+  if(!Sync.ready() || DB.cfg.autoSync === false) return;
+  clearTimeout(SYNC_T);
+  SYNC_T = setTimeout(() => doSync(true), 6000);   // 入力が落ち着いてから
+}
+async function doSync(silent){
+  if(Sync.busy || !Sync.ready()) return;
+  const before = notices().length;
+  Sync.busy = true; Sync.status = '同期中'; paintSync();
+  try{
+    await Sync.run();
+    Sync.status = '同期済'; paintSync();
+    if(!silent) toast('同期しました');
+    render();
+    refreshNotes(before);
+  }catch(e){
+    Sync.status = 'エラー'; paintSync();
+    if(!silent) alert('同期に失敗しました：' + e.message);
+  }
+  Sync.busy = false;
+}
+function paintSync(){
+  const el = document.getElementById('syncst'); if(!el) return;
+  const ok = Sync.status === '同期済';
+  el.innerHTML = Sync.ready()
+    ? '<span class="tag '+(Sync.status==='エラー'?'r':ok?'g':'n')+'">' +
+      (Sync.status||'未同期') + (DB.cfg.lastSync ? ' ' + (DB.cfg.lastSync||'').slice(11,16) : '') + '</span>'
+    : '';
+}
+/* 自動同期：起動時＋数十秒ごとに「更新があるか」だけ確認して、あれば取り込む */
+async function checkRev(){
+  if(Sync.busy || !Sync.ready() || DB.cfg.autoSync === false) return;
+  try{
+    const r = await Sync.call('rev');
+    if(r && r.ok && Number(r.rev||0) !== Number(DB.rev||0)) await doSync(true);
+    else { Sync.status = '同期済'; paintSync(); }
+  }catch(e){ /* 圏外などは黙って次回 */ }
+}
+function startAutoSync(){
+  clearInterval(startAutoSync._i);
+  clearInterval(startAutoSync._f);
+  if(!Sync.ready() || DB.cfg.autoSync === false){ paintSync(); return; }
+  doSync(true);
+  const sec = Math.max(10, Math.min(600, DB.cfg.pollSec || 30));
+  startAutoSync._i = setInterval(checkRev, sec * 1000);          // 更新があるかの確認（軽い）
+  startAutoSync._f = setInterval(() => doSync(true), 600000);    // 念のため10分に1回はフル同期
+  if(!startAutoSync._bound){
+    startAutoSync._bound = true;
+    document.addEventListener('visibilitychange', () => { if(!document.hidden) checkRev(); });
+    window.addEventListener('online', () => checkRev());
+    window.addEventListener('focus', () => checkRev());
+  }
+}
+
+/* ============================================================
+   画面ルーティング
+   ============================================================ */
+const VIEWS = [
+  {id:'board', label:'本日のボード', ic:'▦', sub:'担当者ごとの予定を一覧'},
+  {id:'week',  label:'週間予定',     ic:'▤', sub:'1週間の割り当て状況'},
+  {id:'jobs',  label:'受付・案件',   ic:'≡', sub:'電話受付から完了までの管理'},
+  {id:'todo',  label:'ToDo',        ic:'✓', sub:'カテゴリー別のタスク管理'},
+  {id:'sales', label:'売掛会議',     ic:'¥', sub:'未請求・未入金・現金の点検'},
+  {id:'report',label:'日報',         ic:'▭', sub:'作業実績の記録'},
+  {id:'atd',   label:'勤怠・休暇',   ic:'☺', sub:'出勤と休暇の管理'},
+  {id:'cfg',   label:'設定',         ic:'⚙', sub:'担当者・移動時間・テンプレート'}
+];
+const S = { view:'board', mode:'all', me:'', date: today(), month: today().slice(0,7), wkStart: null, todoF:{cat:'all', scope:'all', who:'all', tab:'open'}, jobF:{st:'all', q:''}, sideOpen:false };
+S.wkStart = addD(S.date, -((parseD(S.date).getDay()+6)%7));
+S.mode = DB.cfg.mode || 'all';
+S.me   = DB.cfg.me || (activeStaff()[0]||{}).id || '';
+const isMe = () => S.mode === 'me' && !!S.me;
+const meStaff = () => staffById(S.me);
+function setMode(m){ S.mode = m; if(m==='me' && !staffById(S.me)) S.me = (activeStaff()[0]||{}).id||'';
+  DB.cfg.mode = m; DB.cfg.me = S.me; save(); render(); }
+function setMe(id){ S.me = id; DB.cfg.me = id; save(); render(); }
+/* 表示モードに応じた絞り込み */
+const mySch   = list => isMe() ? list.filter(e => e.who.includes(S.me)) : list;
+const myTodos = list => isMe() ? list.filter(t => (t.who||[]).includes(S.me)) : list;
+const boardStaff = () => isMe() ? activeStaff().filter(s => s.id === S.me) : activeStaff();
+
+function go(v){ S.view = v; S.sideOpen = false; render(); window.scrollTo(0,0); }
+
+function render(){
+  document.documentElement.setAttribute('data-theme', DB.cfg.theme || 'light');
+  const v = VIEWS.find(x => x.id === S.view) || VIEWS[0];
+  const openJobs = visibleJobs().filter(j => j.status !== '完了').length;
+  const openTodo = myTodos(liveTodos()).length;
+  const nAlert = alertCount();
+  document.getElementById('app').innerHTML =
+  '<div class="app">' +
+    '<aside class="side'+(S.sideOpen?' open':'')+'">' +
+      '<div class="brand"><div class="mark">金</div><div><b>金剛住機</b><span>SCHEDULE</span></div></div>' +
+      '<div class="modesw">' +
+        '<button class="'+(S.mode==='all'?'on':'')+'" onclick="setMode(\'all\')">全体</button>' +
+        '<button class="'+(S.mode==='me'?'on':'')+'" onclick="setMode(\'me\')">担当者別</button>' +
+      '</div>' +
+      (S.mode==='me' ? '<div class="mesel">' + avatar(meStaff()) +
+        '<select onchange="setMe(this.value)">' + activeStaff().map(s =>
+          '<option value="'+s.id+'"'+(S.me===s.id?' selected':'')+'>'+esc(s.full||s.name)+'</option>').join('') +
+        '</select></div>' : '') +
+      '<nav class="nav">' + VIEWS.map(x =>
+        '<button class="'+(x.id===S.view?'on':'')+'" onclick="go(\''+x.id+'\')">' +
+          '<span class="ic">'+x.ic+'</span>'+x.label +
+          (x.id==='jobs' && openJobs ? '<span class="badge">'+openJobs+'</span>' : '') +
+          (x.id==='todo' && openTodo ? '<span class="badge">'+openTodo+'</span>' : '') +
+          (x.id==='sales' && nAlert ? '<span class="badge">'+nAlert+'</span>' : '') +
+        '</button>').join('') + '</nav>' +
+      '<div class="mesel" style="margin-top:auto;margin-bottom:0;border:none;border-top:1px solid var(--line);border-radius:0">' +
+        '<span style="font-size:11px;color:var(--tx-3)">操作者</span>' +
+        '<select onchange="setActor(this.value)">' +
+          '<option value="">未設定</option>' +
+          activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
+        '</select></div>' +
+      '<div class="side-foot"><span>試作版 v1.7</span><span id="syncst"></span>' +
+        '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
+    '</aside>' +
+    '<div class="main">' +
+      '<div class="top">' +
+        '<button class="btn sm menu-btn" onclick="S.sideOpen=!S.sideOpen;render()">☰</button>' +
+        '<div><h1>'+v.label+'</h1><p>'+(isMe() ? esc((meStaff()||{}).full || (meStaff()||{}).name || '') + ' さんの表示' : v.sub)+'</p></div>' +
+        '<div class="sp"></div>' +
+        '<button class="btn bell" onclick="openNotes()" title="お知らせ">🔔<span id="bellct" class="bellct"></span></button>' +
+        topRight() +
+      '</div>' +
+      '<div class="body" id="body"></div>' +
+    '</div>' +
+  '</div>';
+  ({board:viewBoard, week:viewWeek, jobs:viewJobs, todo:viewTodo, sales:viewSales, report:viewReport, atd:viewAtd, cfg:viewCfg}[S.view] || viewBoard)();
+  paintSync();
+}
+function setActor(id){ DB.cfg.actor = id; save(); render(); }
+function toggleTheme(){ DB.cfg.theme = (DB.cfg.theme==='dark'?'light':'dark'); save(); render(); }
+
+function topRight(){
+  if(S.view === 'board') return dateNav(S.date, 'shiftDay') +
+    '<button class="btn" onclick="S.date=today();render()">今日</button>' +
+    '<button class="btn pri" onclick="openJob()">＋ 受付を登録</button>';
+  if(S.view === 'week'){
+    const e = addD(S.wkStart, 6);
+    return '<div class="datenav"><button onclick="S.wkStart=addD(S.wkStart,-7);render()">‹</button>' +
+      '<div class="d"><b>'+fmtD(S.wkStart).split('（')[0]+' – '+fmtD(e).split('（')[0]+'</b><span>週間</span></div>' +
+      '<button onclick="S.wkStart=addD(S.wkStart,7);render()">›</button></div>' +
+      '<button class="btn" onclick="S.wkStart=addD(today(),-((parseD(today()).getDay()+6)%7));render()">今週</button>' +
+      '<button class="btn pri" onclick="openSch()">＋ 予定を追加</button>';
+  }
+  if(S.view === 'jobs') return '<button class="btn pri" onclick="openJob()">＋ 受付を登録</button>';
+  if(S.view === 'sales') return '<div class="datenav"><button onclick="shiftMonth(-1)">‹</button>' +
+    '<div class="d"><b>'+S.month.replace('-','/')+'</b><span>売掛会議</span></div>' +
+    '<button onclick="shiftMonth(1)">›</button></div>' +
+    '<button class="btn" onclick="S.month=today().slice(0,7);render()">今月</button>' +
+    '<button class="btn pri" onclick="closeMonth()">この月を締める</button>';
+  if(S.view === 'todo') return '<button class="btn" onclick="openTplPick()">テンプレートから追加</button>' +
+                                '<button class="btn pri" onclick="openTodo()">＋ ToDoを追加</button>';
+  if(S.view === 'report') return dateNav(S.date,'shiftDay') + '<button class="btn pri" onclick="openReport()">＋ 日報を書く</button>';
+  if(S.view === 'atd') return dateNav(S.date,'shiftDay') + '<button class="btn pri" onclick="openAtd()">＋ 勤怠を登録</button>';
+  return '';
+}
+function dateNav(d, fn){
+  const dd = parseD(d);
+  return '<div class="datenav"><button onclick="'+fn+'(-1)">‹</button>' +
+    '<div class="d"><b>'+(dd.getMonth()+1)+'/'+dd.getDate()+'</b><span>'+WD[dd.getDay()]+'曜日 · '+dd.getFullYear()+'</span></div>' +
+    '<button onclick="'+fn+'(1)">›</button></div>';
+}
+function shiftDay(n){ S.date = addD(S.date, n); render(); }
+function shiftMonth(n){
+  const [y,m] = S.month.split('-').map(Number);
+  const d = new Date(y, m-1+n, 1); S.month = d.getFullYear()+'-'+pad(d.getMonth()+1); render();
+}
+/* ============================================================
+   売掛・入金の計算
+   ============================================================ */
+const OPEN_STAGES = STAGE_KEYS.filter(k => k!=='完了' && k!=='失注');
+const paidOf   = j => (j.pays||[]).reduce((a,p) => a + (Number(p.amount)||0), 0);
+const balOf    = j => (Number(j.inv)||0) - paidOf(j);
+/* 未請求＝完工しているのに請求書が出ていない */
+const isUnbilled = j => j.status === '完工' && !(Number(j.inv) > 0);
+/* 未入金＝請求済みで残高あり */
+const isUnpaid   = j => (Number(j.inv) > 0) && balOf(j) > 0 && j.status !== '失注';
+/* 工程に入った日 */
+function stageSince(j){
+  const iso8601 = (j.stageAt||{})[j.status] || (j.created||today())+'T09:00:00.000Z';
+  return daysAgo(iso8601);
+}
+function slaOf(k){ const c = DB.cfg.sla||{}; return (c[k]!==undefined ? c[k] : stageDef(k).sla); }
+const isStuck = j => OPEN_STAGES.indexOf(j.status) >= 0 && slaOf(j.status) > 0 && stageSince(j) > slaOf(j.status);
+/* 入金期日からの経過日数 */
+function overdueDays(j){
+  if(!isUnpaid(j)) return 0;
+  const base = j.due || j.invDate;
+  if(!base) return 0;
+  const d = Math.floor((new Date(today()+'T00:00:00') - new Date(base+'T00:00:00'))/86400000);
+  return Math.max(0, d);
+}
+/* 現金の預り残高（集金したが会社へ未納金） */
+function cashHeld(staffId){
+  let sum = 0;
+  DB.jobs.forEach(j => (j.pays||[]).forEach(p => {
+    if(p.method === '現金' && !p.depositId && (!staffId || p.collector === staffId)) sum += Number(p.amount)||0;
+  }));
+  return sum;
+}
+function cashHeldRows(){
+  return activeStaff().map(s => ({s, amount: cashHeld(s.id),
+    items: DB.jobs.flatMap(j => (j.pays||[]).filter(p => p.method==='現金' && !p.depositId && p.collector===s.id)
+      .map(p => ({j, p})))})).filter(r => r.amount > 0 || r.items.length);
+}
+/* 案件の絞り込み（案件責任者 or 予定/ToDoの担当） */
+function jobStaff(j){
+  const set = new Set(); if(j.owner) set.add(j.owner);
+  DB.sch.forEach(e => { if(e.jobId===j.id) e.who.forEach(w => set.add(w)); });
+  DB.todos.forEach(t => { if(!t.del && t.jobId===j.id) (t.who||[]).forEach(w => set.add(w)); });
+  return [...set];
+}
+
+/* 自分が関わる案件（予定 or ToDo に担当として入っている） */
+function visibleJobs(){
+  if(!isMe()) return DB.jobs;
+  const ids = new Set();
+  DB.sch.forEach(e => { if(e.who.includes(S.me) && e.jobId) ids.add(e.jobId); });
+  DB.todos.forEach(t => { if(!t.del && (t.who||[]).includes(S.me) && t.jobId) ids.add(t.jobId); });
+  return DB.jobs.filter(j => ids.has(j.id) || j.owner === S.me);
+}
+
+/* ============================================================
+   本日のボード
+   ============================================================ */
+function viewBoard(){
+  if(isMe()) return viewBoardMe();
+  const d = S.date;
+  const day = dayEvents(d);
+  const dup = conflicts(d);
+  const unassigned = DB.jobs.filter(j => j.status!=='完了' && !DB.sch.some(e => e.jobId === j.id));
+  const urgent = day.filter(e => { const j = jobById(e.jobId); return j && j.prio === '至急'; }).length;
+  const working = new Set(); day.forEach(e => e.who.forEach(w => working.add(w)));
+  const myTodo = liveTodos().filter(t => t.due && t.due <= d);
+
+  const S0 = DB.cfg.wStart, E0 = DB.cfg.wEnd, cols = E0 - S0;
+  const hours = []; for(let h=S0; h<=E0; h++) hours.push(h);
+
+  const LANE_H = 52, LANE_GAP = 5, PAD = 9;
+  const rows = activeStaff().map(s => {
+    const mine = day.filter(e => e.who.includes(s.id)).sort((a,b)=>span(a).s - span(b).s || toMin(a.start)-toMin(b.start));
+    const own  = mine.filter(e => !e.ext);
+    const mins = own.reduce((a,e)=>a + (toMin(e.end)-toMin(e.start)), 0);
+    const tmin = own.reduce((a,e)=>a + (e.out|0) + (e.back|0), 0);
+    const allDay = allDayItems(d, s.id);
+    /* 重なりを段に振り分ける（移動時間も含めて判定） */
+    const laneEnd = [], lane = {};
+    mine.forEach(e => {
+      const sp = span(e);
+      let i = laneEnd.findIndex(end => end <= sp.s);
+      if(i < 0){ laneEnd.push(sp.e); i = laneEnd.length - 1; }
+      else laneEnd[i] = sp.e;
+      lane[e.id] = i;
+    });
+    const nLane = Math.max(1, laneEnd.length);
+    const rowH = PAD*2 + nLane*LANE_H + (nLane-1)*LANE_GAP;
+    /* この担当者の中で実際に時間が重なっているものだけを重複とする */
+    const dupHere = new Set();
+    for(let i=0;i<mine.length;i++) for(let j=i+1;j<mine.length;j++){
+      const a = mine[i], b = mine[j];
+      if(a.tent || b.tent) continue;
+      const A = span(a), B = span(b);
+      if(A.s < B.e && B.s < A.e){ dupHere.add(a.id); dupHere.add(b.id); }
+    }
+    const bars = mine.map(e => {
+      const c = catColor(e.cat), sp = span(e), li = lane[e.id];
+      const L = t => clamp(((t - S0*60) / (cols*60)) * 100, 0, 100);
+      const top = PAD + li*(LANE_H + LANE_GAP);
+      let h = '';
+      if(e.out|0) h += '<div class="tv" style="left:'+L(sp.s)+'%;width:'+(L(sp.cs)-L(sp.s))+'%;top:'+(top+9)+'px;height:'+(LANE_H-18)+'px" title="往路 '+(e.out|0)+'分" onclick="event.stopPropagation();openSch(\''+e.id+'\')">往'+(e.out|0)+'</div>';
+      if(e.back|0) h += '<div class="tv" style="left:'+L(sp.ce)+'%;width:'+(L(sp.e)-L(sp.ce))+'%;top:'+(top+9)+'px;height:'+(LANE_H-18)+'px" title="復路 '+(e.back|0)+'分" onclick="event.stopPropagation();openSch(\''+e.id+'\')">復'+(e.back|0)+'</div>';
+      h += '<div class="ev'+(e.tent?' tent':'')+(e.ext?' ext':'')+(dupHere.has(e.id)?' dup':'')+'" style="left:'+L(sp.cs)+'%;width:'+Math.max(L(sp.ce)-L(sp.cs),2.2)+'%;top:'+top+'px;height:'+LANE_H+'px;'+(e.ext?'':'background:'+c)+'" ' +
+        'onclick="'+(e.ext?'openExt(\''+e.id+'\')':'openSch(\''+e.id+'\')')+'" title="'+esc(e.title)+' / '+e.start+'–'+e.end+' / '+esc(whoNames(e.who))+'">' +
+        '<b>'+(e.ext?'📅 ':'')+esc(e.title)+'</b><span>'+e.start+'–'+e.end+(e.who.length>1?' ・'+e.who.length+'名':'')+'</span></div>';
+      return h;
+    }).join('');
+    const nowBar = (d === today()) ? nowLine(S0, cols) : '';
+    const myDup = dupHere.size;
+    return '<div class="g-row" style="min-height:'+rowH+'px"><div class="lead">' + avatar(s) +
+      '<div class="who"><b>'+esc(s.name)+'</b>' +
+        (myDup ? '<br><span class="badge-dup">重複 '+myDup+'件</span>' : '') +
+        (allDay.length ? '<br>' + allDay.slice(0,2).map(x =>
+          '<span class="tag n" style="font-size:9.5px;cursor:pointer" onclick="'+(x.ext?'openExt(\''+x.id+'\')':'openSch(\''+x.id+'\')')+'" title="'+esc(x.title)+'">' +
+          (x.ext?'📅 ':'●')+esc(x.title.slice(0,10))+'</span>').join(' ') + (allDay.length>2?'<span class="tag n" style="font-size:9.5px">他'+(allDay.length-2)+'</span>':'') : '') + '</div>' +
+      '<div class="cnt">'+own.length+'件<br>'+(mins/60).toFixed(mins%60?1:0)+'h'+(tmin?'<br><span style="color:var(--tx-3)">移動'+tmin+'分</span>':'')+
+        (nLane>1?'<br><span style="color:var(--danger)">'+nLane+'段</span>':'')+'</div></div>' +
+      '<div class="track" style="--colw:'+(100/cols)+'%">'+bars+nowBar+'</div></div>';
+  }).join('');
+
+  document.getElementById('body').innerHTML =
+    '<div class="stats">' +
+      stat('本日の案件', day.filter(e=>!e.ext).length, '件', 'var(--info)', 'day') +
+      stat('本日の至急', urgent, '件', urgent?'var(--danger)':'var(--ok)', 'urgent') +
+      stat('未割り当て', unassigned.length, '件', unassigned.length?'var(--accent)':'var(--ok)', 'unassigned') +
+      stat('時間の重複', dup.size, '件', dup.size?'var(--danger)':'var(--ok)', 'dup') +
+      stat('稼働人数', working.size, '/'+activeStaff().length+'名', 'var(--ok)', 'staff') +
+      stat('未完了ToDo', myTodo.length, '件', myTodo.length?'var(--warn)':'var(--ok)', 'todo') +
+    '</div>' +
+
+    '<section class="panel"><header><h2>ディスパッチボード</h2>' +
+      '<span class="hint">帯をタップで詳細／斜線は移動時間／重なった予定は段を分けて表示</span>' +
+      '<div class="sp"></div><button class="btn sm" onclick="openSch()">＋ 予定</button></header>' +
+      '<div class="legend">' + Object.keys(CATS).map(k => '<span><i style="background:'+CATS[k]+'"></i>'+k+'</span>').join('') +
+        '<span><i style="background:transparent;border:1.4px dashed #98a4b3"></i>仮予定</span>' +
+        '<span><span class="tv"></span>移動時間</span>' +
+        (hasCal() ? '<span><i style="background:transparent;border:1.4px solid #7c8898"></i>📅 Googleカレンダー</span>' : '') + '</div>' +
+      '<div class="gantt"><div class="g-in">' +
+        '<div class="g-head"><div class="lead"></div><div class="cells">' +
+          hours.slice(0,-1).map(h => '<div>'+h+'</div>').join('') + '</div></div>' +
+        (rows || '<div class="empty">担当者が登録されていません</div>') +
+      '</div></div></section>' +
+
+    alertPanel() +
+    '<section class="panel"><header><h2>未割り当ての受付</h2>' +
+      '<span class="hint">電話で入った相談。担当と時間を決めてボードへ</span></header>' +
+      (unassigned.length ? '<div class="pad">' + unassigned.map(j =>
+        '<div class="todo"><div class="bd"><div class="ttl">'+esc(j.customer)+' — '+esc(j.title)+'</div>' +
+        '<div class="meta"><span class="tag '+(PRIOS[j.prio]||'n')+'">'+esc(j.prio)+'</span>' +
+        '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(j.cat)+'</span>' +
+        '<span>'+esc(j.address||'住所未登録')+'</span></div></div>' +
+        '<div class="acts"><button class="btn sm" onclick="openJob(\''+j.id+'\')">編集</button>' +
+        '<button class="btn sm pri" onclick="openSch(null,\''+j.id+'\')">予定を作る</button></div></div>').join('') + '</div>'
+        : '<div class="empty">未割り当ての受付はありません</div>') +
+    '</section>' +
+
+    '<section class="panel"><header><h2>本日までのToDo</h2>' +
+      '<div class="sp"></div><button class="btn sm" onclick="go(\'todo\')">すべて表示</button></header>' +
+      (myTodo.length ? '<div class="pad">' + myTodo.slice(0,6).map(todoRow).join('') + '</div>'
+        : '<div class="empty">期限内のToDoはありません</div>') +
+    '</section>';
+}
+/* ---------- 担当者別：1日のタイムライン ---------- */
+function viewBoardMe(){
+  const d = S.date, me = meStaff();
+  const list = dayEvents(d).filter(e => e.who.includes(S.me)).sort((a,b)=>toMin(a.start)-toMin(b.start));
+  const own  = list.filter(e => !e.ext);
+  const dup = conflicts(d);
+  const work = own.reduce((a,e)=>a + (toMin(e.end)-toMin(e.start)), 0);
+  const mv   = own.reduce((a,e)=>a + (e.out|0) + (e.back|0), 0);
+  const first = own[0], last = own[own.length-1];
+  const bind = first ? (toMin(last.end)+(last.back|0)) - (toMin(first.start)-(first.out|0)) : 0;
+  const td = myTodos(liveTodos()).filter(t => t.due && t.due <= d);
+  const atd = DB.atd.find(a => a.date===d && a.who===S.me);
+
+  const rows = list.map(e => {
+    const c = catColor(e.cat), sp = span(e), others = e.who.filter(w => w !== S.me);
+    let h = '';
+    if(e.out|0) h += tlRow(toHM(sp.s), '<div class="tlmove">🚗 出発 → 現場へ　'+(e.out|0)+'分'+(e.address?'　'+esc(e.address):'')+'</div>');
+    h += tlRow(e.start,
+      '<div class="tlcard'+(e.ext?' ext':'')+'" style="border-left-color:'+(e.ext?'#97a2b0':c)+'" onclick="'+(e.ext?'openExt(\''+e.id+'\')':'openSch(\''+e.id+'\')')+'">' +
+      '<b>'+(e.ext?'📅 ':'')+esc(e.title)+'</b>' +
+      '<div class="m">'+e.start+'–'+e.end+'　'+esc(e.cat)+
+        (others.length ? '　同行：'+esc(whoNames(others)) : '') +
+        (dup.has(e.id) ? '　<span class="tag r">時間が重複</span>' : '') +
+        (e.tent ? '　<span class="tag n">仮予定</span>' : '') + '</div>' +
+      (e.address ? '<div class="m">📍 '+esc(e.address)+'</div>' : '') +
+      (e.note ? '<div class="m">'+esc(e.note)+'</div>' : '') + '</div>');
+    if(e.back|0) h += tlRow(e.end, '<div class="tlmove">🚗 現場 → 帰社　'+(e.back|0)+'分</div>');
+    return h;
+  }).join('');
+
+  document.getElementById('body').innerHTML =
+    '<div class="meband">' + avatar(me) + '<div><b>'+esc((me||{}).full||(me||{}).name||'')+'</b>' +
+      '<div style="font-size:11.5px;color:var(--tx-3)">'+fmtD(d)+
+      (atd && atd.type!=='出勤' ? '　<span class="tag b">'+esc(atd.type)+'</span>' : '')+'</div></div>' +
+      '<div class="sp" style="margin-left:auto"></div>' +
+      '<button class="btn sm" onclick="openSch(null,null,\''+d+'\',\''+S.me+'\')">＋ 予定</button>' +
+      '<button class="btn sm" onclick="openTodo()">＋ ToDo</button></div>' +
+    '<div class="stats">' +
+      stat('本日の予定', own.length, '件', 'var(--info)', 'day') +
+      stat('作業時間', (work/60).toFixed(work%60?1:0), 'h', 'var(--ok)', 'day') +
+      stat('移動時間', mv, '分', mv?'var(--warn)':'var(--ok)', 'move') +
+      stat('拘束時間', bind ? (bind/60).toFixed(bind%60?1:0) : 0, 'h', 'var(--navy)', 'day') +
+      stat('未完了ToDo', td.length, '件', td.length?'var(--warn)':'var(--ok)', 'todo') +
+    '</div>' +
+    (allDayItems(d, S.me).length ? '<div class="hintline" style="padding:0 2px">' +
+       allDayItems(d, S.me).map(x => '<span class="tag n" style="cursor:pointer" onclick="'+(x.ext?'openExt(\''+x.id+'\')':'openSch(\''+x.id+'\')')+'">'+(x.ext?'📅 ':'')+'終日：'+esc(x.title)+'</span>').join(' ') + '</div>' : '') +
+    '<section class="panel"><header><h2>'+fmtD(d)+' の予定</h2>' +
+      '<span class="hint">移動時間を含めた1日の流れ（📅 はGoogleカレンダー）</span></header>' +
+      (list.length ? '<div class="pad"><div class="tl">' + rows + '</div></div>'
+        : '<div class="empty">この日の予定はありません</div>') +
+    '</section>' +
+    '<section class="panel"><header><h2>自分のToDo（本日まで）</h2><div class="sp"></div>' +
+      '<button class="btn sm" onclick="go(\'todo\')">すべて表示</button></header>' +
+      (td.length ? '<div class="pad">' + td.map(todoRow).join('') + '</div>'
+        : '<div class="empty">期限内のToDoはありません</div>') +
+    '</section>';
+}
+function tlRow(time, inner){
+  return '<div class="tlrow"><div class="tm">'+time+'</div>' +
+    '<div class="ln"><i></i><s></s></div><div class="bx">'+inner+'</div></div>';
+}
+/* ---------- 担当者別：週間 ---------- */
+function viewWeekMe(){
+  const days = []; for(let i=0;i<7;i++) days.push(addD(S.wkStart, i));
+  const me = meStaff();
+  document.getElementById('body').innerHTML =
+    '<div class="meband">' + avatar(me) + '<div><b>'+esc((me||{}).full||(me||{}).name||'')+'</b>' +
+      '<div style="font-size:11.5px;color:var(--tx-3)">'+fmtD(S.wkStart)+' 〜 '+fmtD(days[6])+'</div></div></div>' +
+    days.map(d => {
+      const list = dayEvents(d).filter(e => e.who.includes(S.me)).sort((a,b)=>toMin(a.start)-toMin(b.start));
+      const off = DB.atd.find(a => a.date===d && a.who===S.me && a.type!=='出勤');
+      const w = parseD(d).getDay();
+      const mv = list.reduce((a,e)=>a+(e.out|0)+(e.back|0),0);
+      const ad = allDayItems(d, S.me);
+      return '<section class="panel"><header>' +
+        '<h2 style="color:'+(w===0?'var(--danger)':w===6?'var(--info)':'inherit')+'">'+fmtD(d)+'</h2>' +
+        (off ? '<span class="tag b">'+esc(off.type)+'</span>' : '') +
+        '<span class="hint">'+list.length+'件'+(mv?'／移動 '+mv+'分':'')+'</span>' +
+        ad.map(x => '<span class="tag n">'+(x.ext?'📅 ':'')+'終日：'+esc(x.title)+'</span>').join('') +
+        '<div class="sp"></div><button class="btn sm" onclick="openSch(null,null,\''+d+'\',\''+S.me+'\')">＋</button></header>' +
+        (list.length ? '<div class="pad">' + list.map(e => {
+          const c = e.ext ? '#97a2b0' : catColor(e.cat), others = e.who.filter(x=>x!==S.me);
+          return '<div class="tlcard" style="border-left-color:'+c+';margin-bottom:8px" onclick="'+(e.ext?'openExt(\''+e.id+'\')':'openSch(\''+e.id+'\')')+'">' +
+            '<b>'+(e.ext?'📅 ':'')+esc(e.title)+'</b><div class="m">' +
+            ((e.out|0)?toHM(toMin(e.start)-(e.out|0))+' 出発 ／ ':'') + e.start+'–'+e.end +
+            ((e.back|0)?' ／ '+toHM(toMin(e.end)+(e.back|0))+' 帰社':'') +
+            '　'+esc(e.cat) + (others.length?'　同行：'+esc(whoNames(others)):'') + '</div>' +
+            (e.address?'<div class="m">📍 '+esc(e.address)+'</div>':'') + '</div>';
+        }).join('') + '</div>' : '<div class="empty" style="padding:16px">予定なし</div>') +
+      '</section>';
+    }).join('');
+}
+function alertPanel(){
+  const all = visibleJobs();
+  const rows = all.filter(j => isUnbilled(j) || (isUnpaid(j) && overdueDays(j) > 0) || isStuck(j))
+    .sort((a,b) => (isUnbilled(b)?1:0)-(isUnbilled(a)?1:0) || stageSince(b)-stageSince(a));
+  const cash = cashHeldRows();
+  if(!rows.length && !cash.length) return '';
+  return '<section class="panel" style="border-color:#f0c9c9"><header>' +
+    '<h2>要対応アラート</h2><span class="hint">放置すると売上の取りこぼしになります</span>' +
+    '<div class="sp"></div><button class="btn sm" onclick="go(\'sales\')">売掛会議へ</button></header>' +
+    '<div class="pad">' +
+      rows.slice(0,8).map(j => {
+        const od = overdueDays(j);
+        const why = isUnbilled(j) ? '<span class="tag r">未請求 '+stageSince(j)+'日</span>'
+          : (isUnpaid(j) && od>0) ? '<span class="tag '+(od>60?'r':'o')+'">入金遅れ '+od+'日</span>'
+          : '<span class="tag o">'+esc(j.status)+'のまま '+stageSince(j)+'日</span>';
+        return '<div class="todo"><div class="bd"><div class="ttl">'+esc(j.customer)+' — '+esc(j.title)+'</div>' +
+          '<div class="meta">'+why+(j.owner?avatars([j.owner]):'<span class="tag n">責任者未定</span>')+
+          (j.inv?'<span class="tag n mono">残 '+money(balOf(j))+'</span>':'')+'</div></div>' +
+          '<div class="acts"><button class="btn sm" onclick="openJob(\''+j.id+'\')">開く</button></div></div>';
+      }).join('') +
+      cash.map(r => '<div class="todo"><div class="bd"><div class="ttl">'+esc(r.s.name)+' の現金預り残高</div>' +
+        '<div class="meta"><span class="tag r mono">'+money(r.amount)+'</span><span class="tag n">未納金 '+r.items.length+'件</span></div></div>' +
+        '<div class="acts"><button class="btn sm pri" onclick="openDeposit(\''+r.s.id+'\')">納金</button></div></div>').join('') +
+    '</div></section>';
+}
+/* ============================================================
+   指標カードのクリック → 内訳の一覧
+   ============================================================ */
+function conflictPairs(date){
+  const list = dayEvents(date).filter(e => !e.tent && !e.allDay);
+  const pairs = [];
+  for(let i=0;i<list.length;i++) for(let j=i+1;j<list.length;j++){
+    const a = list[i], b = list[j];
+    const shared = a.who.filter(w => b.who.includes(w));
+    if(!shared.length) continue;
+    const A = span(a), B = span(b);
+    if(A.s < B.e && B.s < A.e) pairs.push({a, b, who: shared});
+  }
+  return pairs;
+}
+function evRow(e, extra){
+  const c = e.ext ? '#97a2b0' : catColor(e.cat);
+  return '<div class="todo" style="border-left:3px solid '+c+'">' +
+    '<div class="bd"><div class="ttl">'+(e.ext?'📅 ':'')+esc(e.title)+'</div>' +
+    '<div class="meta">' +
+      '<span class="tag n">'+(e.allDay?'終日':e.start+'–'+e.end)+'</span>' +
+      '<span class="tag n" style="background:'+c+'22;color:'+c+'">'+esc(e.cat)+'</span>' +
+      avatars(e.who) +
+      (((e.out|0)||(e.back|0)) ? '<span class="tag n">移動 往'+(e.out|0)+'／復'+(e.back|0)+'分</span>' : '') +
+      (e.address ? '<span>📍'+esc(e.address)+'</span>' : '') +
+      (extra||'') +
+    '</div></div>' +
+    '<div class="acts"><button class="btn sm" onclick="closeM();' +
+      (e.ext ? 'openExt(\''+e.id+'\')' : 'openSch(\''+e.id+'\')') + '">開く</button></div></div>';
+}
+function openStat(kind){
+  const d = S.date, t0 = today();
+  const mineOnly = a => isMe() ? a.filter(e => (e.who||[]).includes(S.me)) : a;
+  let title = '', body = '', foot = '';
+
+  if(kind === 'day' || kind === 'move'){
+    let list = mineOnly(dayEvents(d)).concat(DB.sch.filter(e => e.allDay && e.date <= d && (e.endDate||e.date) >= d && (!isMe() || e.who.includes(S.me))));
+    if(kind === 'move') list = list.filter(e => (e.out|0) || (e.back|0));
+    list.sort((a,b)=>toMin(a.start)-toMin(b.start));
+    title = kind === 'move' ? fmtD(d) + ' の移動' : fmtD(d) + ' の予定（' + list.length + '件）';
+    body = list.length ? list.map(e => evRow(e,
+      kind === 'move' && !e.allDay
+        ? '<span class="tag o">'+toHM(toMin(e.start)-(e.out|0))+' 出発 → '+toHM(toMin(e.end)+(e.back|0))+' 帰社</span>' : '')).join('')
+      : '<div class="empty">この日の予定はありません</div>';
+    foot = '<button class="btn" onclick="closeM();openSch(null,null,\''+d+'\''+(isMe()?',\''+S.me+'\'':'')+')">＋ 予定を追加</button>';
+
+  }else if(kind === 'urgent'){
+    const list = mineOnly(dayEvents(d)).filter(e => { const j = jobById(e.jobId); return j && j.prio === '至急'; });
+    title = fmtD(d) + ' の至急案件（' + list.length + '件）';
+    body = list.length ? list.map(e => evRow(e, '<span class="tag r">至急</span>')).join('')
+      : '<div class="empty">至急の案件はありません</div>';
+
+  }else if(kind === 'unassigned'){
+    const list = visibleJobs().filter(j => j.status!=='完了' && j.status!=='失注' && !DB.sch.some(e => e.jobId === j.id));
+    title = '未割り当ての受付（' + list.length + '件）';
+    body = list.length ? list.map(j =>
+      '<div class="todo" style="border-left:3px solid var(--accent)"><div class="bd">' +
+      '<div class="ttl">'+esc(j.customer)+' — '+esc(j.title)+'</div><div class="meta">' +
+      '<span class="tag '+(PRIOS[j.prio]||'n')+'">'+esc(j.prio)+'</span>' +
+      '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(j.cat)+'</span>' +
+      '<span class="tag n">'+esc(j.status)+'</span>' +
+      (j.address?'<span>📍'+esc(j.address)+'</span>':'') + '</div></div>' +
+      '<div class="acts"><button class="btn sm" onclick="closeM();openJob(\''+j.id+'\')">編集</button>' +
+      '<button class="btn sm pri" onclick="closeM();openSch(null,\''+j.id+'\')">予定を作る</button></div></div>').join('')
+      : '<div class="empty">未割り当ての受付はありません</div>';
+
+  }else if(kind === 'dup'){
+    const pairs = conflictPairs(d);
+    title = fmtD(d) + ' の時間の重複（' + pairs.length + '組）';
+    body = pairs.length
+      ? '<div class="hintline">移動時間を含めて重なっています。どちらかの時間か担当を変えてください。</div>' +
+        pairs.map(p =>
+          '<div class="sec" style="border-color:#f0c9c9"><h4 style="color:var(--danger)">' +
+          esc(whoNames(p.who)) + ' さんの予定が重なっています</h4>' +
+          evRow(p.a) + evRow(p.b) + '</div>').join('')
+      : '<div class="empty">重複はありません 👍</div>';
+
+  }else if(kind === 'staff'){
+    const day = dayEvents(d);
+    title = fmtD(d) + ' の稼働状況';
+    body = activeStaff().map(s0 => {
+      const mine = day.filter(e => e.who.includes(s0.id));
+      const own = mine.filter(e => !e.ext);
+      const mins = own.reduce((a,e)=>a+(toMin(e.end)-toMin(e.start)),0);
+      const mv = own.reduce((a,e)=>a+(e.out|0)+(e.back|0),0);
+      const off = DB.atd.find(a => a.date===d && a.who===s0.id && a.type!=='出勤');
+      const ad = allDayItems(d, s0.id);
+      return '<div class="todo"><div class="bd"><div class="ttl">'+avatar(s0)+'　'+esc(s0.name)+'</div>' +
+        '<div class="meta">' +
+        (off ? '<span class="tag b">'+esc(off.type)+'</span>'
+             : (mine.length || ad.length) ? '<span class="tag g">稼働中</span>' : '<span class="tag n">空き</span>') +
+        ad.map(x => '<span class="tag n">'+(x.ext?'📅 ':'')+'終日：'+esc(x.title)+'</span>').join('') +
+        '<span class="tag n">'+own.length+'件</span>' +
+        (mins?'<span class="tag n">作業 '+(mins/60).toFixed(mins%60?1:0)+'h</span>':'') +
+        (mv?'<span class="tag n">移動 '+mv+'分</span>':'') +
+        (mine.filter(e=>e.ext).length?'<span class="tag n">📅'+mine.filter(e=>e.ext).length+'件</span>':'') +
+        '</div>' +
+        (mine.length ? '<div class="meta">' + mine.sort((a,b)=>toMin(a.start)-toMin(b.start))
+          .map(e => '<span class="tag n">'+e.start+' '+esc(e.title.slice(0,14))+'</span>').join('') + '</div>' : '') +
+        '</div><div class="acts">' +
+        '<button class="btn sm" onclick="closeM();setMode(\'me\');setMe(\''+s0.id+'\')">この人を見る</button>' +
+        '<button class="btn sm pri" onclick="closeM();openSch(null,null,\''+d+'\',\''+s0.id+'\')">＋予定</button>' +
+        '</div></div>';
+    }).join('');
+
+  }else if(kind === 'todo' || kind === 'todoOpen' || kind === 'todoOver' || kind === 'todoToday'){
+    let list = myTodos(liveTodos());
+    if(kind === 'todo')      { list = list.filter(t => t.due && t.due <= d); title = '本日までのToDo'; }
+    else if(kind === 'todoOver')  { list = list.filter(t => t.due && t.due < t0); title = '期限切れのToDo'; }
+    else if(kind === 'todoToday') { list = list.filter(t => t.due === t0); title = '本日期限のToDo'; }
+    else title = '未完了のToDo';
+    list.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+    title += '（' + list.length + '件）';
+    body = list.length ? list.map(todoRow).join('') : '<div class="empty">該当するToDoはありません</div>';
+    foot = '<button class="btn" onclick="closeM();go(\'todo\')">ToDo画面へ</button>';
+  }
+
+  shell(title, body, foot + '<div class="sp"></div><button class="btn pri" onclick="closeM()">閉じる</button>', true);
+}
+
+function nowLine(S0, cols){
+  const n = new Date(); const m = n.getHours()*60 + n.getMinutes();
+  const p = ((m - S0*60) / (cols*60)) * 100;
+  if(p < 0 || p > 100) return '';
+  return '<div class="now" style="left:'+p+'%" title="現在時刻"></div>';
+}
+function stat(l, v, u, c, kind){
+  return '<div class="stat'+(kind?' click':'')+'" style="border-left-color:'+c+'"' +
+    (kind?' onclick="openStat(\''+kind+'\')" title="クリックで一覧を表示"':'') + '>' +
+    '<div class="l">'+l+(kind?'<span class="chev">›</span>':'')+'</div>' +
+    '<div class="v">'+v+'<small>'+u+'</small></div></div>';
+}
+
+/* ============================================================
+   週間予定
+   ============================================================ */
+function viewWeek(){
+  if(isMe()) return viewWeekMe();
+  const days = []; for(let i=0;i<7;i++) days.push(addD(S.wkStart, i));
+  const head = '<tr><th>担当者</th>' + days.map(d => {
+    const w = parseD(d).getDay();
+    return '<th class="'+(w===0?'sun':w===6?'sat':'')+'">'+fmtD(d)+'</th>';
+  }).join('') + '</tr>';
+  const body = activeStaff().map(s => '<tr><td>' +
+    '<div style="display:flex;align-items:center;gap:8px">'+avatar(s)+'<b>'+esc(s.name)+'</b></div></td>' +
+    days.map(d => {
+      const list = dayEvents(d).filter(e => e.who.includes(s.id)).sort((a,b)=>toMin(a.start)-toMin(b.start));
+      const off = DB.atd.find(a => a.date===d && a.who===s.id && a.type!=='出勤');
+      return '<td>' + (off ? '<span class="tag b">'+esc(off.type)+'</span>' : '') +
+        allDayItems(d, s.id).map(x => '<button class="wchip'+(x.ext?' ext':'')+'" style="'+(x.ext?'':'background:#6b7280')+'" ' +
+          'onclick="'+(x.ext?'openExt(\''+x.id+'\')':'openSch(\''+x.id+'\')')+'">'+(x.ext?'📅 ':'')+'終日 '+esc(x.title)+'</button>').join('') +
+        list.map(e => '<button class="wchip'+(e.tent?' tent':'')+(e.ext?' ext':'')+'" style="'+(e.ext?'':'background:'+catColor(e.cat))+'" ' +
+          'onclick="'+(e.ext?'openExt(\''+e.id+'\')':'openSch(\''+e.id+'\')')+'">' +
+          (e.ext?'📅 ':'')+e.start+' '+esc(e.title) + ((e.out|0)||(e.back|0) ? ' ⇄' : '') + '</button>').join('') +
+        '<button class="btn sm gh" style="width:100%;color:var(--tx-3)" onclick="openSch(null,null,\''+d+'\',\''+s.id+'\')">＋</button></td>';
+    }).join('') + '</tr>').join('');
+  document.getElementById('body').innerHTML =
+    '<section class="panel"><header><h2>週間予定</h2><span class="hint">⇄ は移動時間の設定あり</span></header>' +
+    '<div class="wk"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></section>';
+}
+
+function setStage(jobId, k){
+  const j = jobById(jobId); if(!j || j.status === k) return;
+  const from = j.status; j.status = k;
+  j.stageAt = j.stageAt || {}; j.stageAt[k] = nowISO();
+  logIt('案件', j.id, j.customer+' '+j.title, '工程', from, k);
+  save(); render();
+  toast('工程を「'+k+'」に変更しました', ()=>{ j.status = from; logIt('案件', j.id, j.customer, '工程（取消）', k, from); });
+}
+
+/* Googleカレンダー由来の予定を開く（読み取り専用） */
+function openExt(id){
+  const parts = id.split(':'), evId = parts[1], sid = parts.slice(2).join(':');
+  const g = (DB.gcal||[]).find(x => x.evId === evId && x.staffId === sid);
+  if(!g) return;
+  shell('Googleカレンダーの予定',
+    '<div class="sec"><h4>'+esc(g.title||'（無題）')+'</h4>' +
+      '<div style="font-size:13px;line-height:1.9">' +
+      '日時：'+esc(g.date)+(g.allDay?'（終日）':' '+esc(g.start)+'–'+esc(g.end)) + '<br>' +
+      '担当：'+esc((staffById(g.staffId)||{}).name||'') + '<br>' +
+      (g.location ? '場所：'+esc(g.location)+'<br>' : '') +
+      '</div>' +
+      (g.desc ? '<div style="white-space:pre-wrap;font-size:12.5px;color:var(--tx-2)">'+esc(g.desc)+'</div>' : '') +
+      (g.guests ? '<div class="hintline">参加者：'+esc(g.guests)+'</div>' : '') +
+      '<div class="hintline">この予定はGoogleカレンダーのものです。変更はカレンダー側で行ってください。アプリでは時間の重複チェックにのみ使われます。</div>' +
+    '</div>' +
+    '<div class="hintline">下のボタンを押すと、<b>件名・日時・場所・メモ・参加者</b>をそのまま引き継いでアプリの予定を作ります。案件や区分、移動時間を足して保存してください。取り込んだあとは、この予定は二重に表示されません。</div>',
+    '<div class="sp"></div><button class="btn" onclick="closeM()">閉じる</button>' +
+    '<button class="btn pri" onclick="importExt(\''+esc(g.evId)+'\',\''+esc(g.staffId)+'\')">この内容でアプリに取り込む</button>');
+}
+
+/* Googleカレンダーの予定を、内容そのままアプリの予定として取り込む */
+function importExt(evId, staffId){
+  const g = (DB.gcal||[]).find(x => x.evId === evId && x.staffId === staffId);
+  if(!g) return;
+  const dup = DB.sch.find(e => e.gid === evId);
+  if(dup){ openSch(dup.id); toast('すでに取り込み済みの予定です'); return; }
+  /* 件名から顧客名らしき部分を拾って案件を探す */
+  const guess = DB.jobs.find(j => j.customer && (g.title||'').indexOf(j.customer) >= 0);
+  M = {
+    id:'', jobId: guess ? guess.id : '',
+    title: g.title || '（無題）',
+    date: g.date,
+    start: g.allDay ? '09:00' : g.start,
+    end:   g.allDay ? '10:00' : g.end,
+    allDay: !!g.allDay, endDate: g.endDate || g.date,
+    who: [g.staffId],
+    cat: guess ? guess.cat : 'その他',
+    tent: false,
+    address: g.location || (guess ? guess.address : ''),
+    out: 0, back: 0,
+    note: g.desc || '',
+    guests: g.guests || '',
+    gid: g.evId, gcalId: g.calId,
+    _travelMsg: '', _from: 'gcal'
+  };
+  drawSch();
+  if(M.address) setTimeout(()=>calcNow(true), 80);
+  toast('Googleカレンダーの内容を読み込みました');
+}
+
+/* ============================================================
+   受付・案件
+   ============================================================ */
+function viewJobs(keepFocus){
+  let list = visibleJobs().slice().reverse();
+  if(S.jobF.st !== 'all'){
+    if(S.jobF.st === 'open')      list = list.filter(j => OPEN_STAGES.indexOf(j.status) >= 0);
+    else if(S.jobF.st === 'stuck')list = list.filter(isStuck);
+    else if(S.jobF.st === 'unbil')list = list.filter(isUnbilled);
+    else if(S.jobF.st === 'unpaid')list = list.filter(isUnpaid);
+    else list = list.filter(j => j.status === S.jobF.st);
+  }
+  if(S.jobF.q) list = list.filter(j => (j.customer+j.title+j.address+j.code).indexOf(S.jobF.q) >= 0);
+
+  const all = visibleJobs();
+  const counts = {};
+  STAGE_KEYS.forEach(k => counts[k] = all.filter(j => j.status === k).length);
+
+  document.getElementById('body').innerHTML =
+    '<section class="panel"><header><h2>案件パイプライン</h2>' +
+      '<span class="hint">受付から入金まで。クリックで絞り込み</span></header>' +
+      '<div class="pad"><div class="pipe">' +
+        STAGE_KEYS.filter(k => k!=='失注').map(k =>
+          '<button class="pstep'+(S.jobF.st===k?' on':'')+'" onclick="S.jobF.st=\''+(S.jobF.st===k?'all':k)+'\';viewJobs()">' +
+          '<i style="background:'+STAGE_COLOR[k]+'"></i><b>'+k+'</b><s>'+counts[k]+'</s></button>').join('') +
+      '</div></div></section>' +
+
+    '<section class="panel"><header><h2>'+(isMe()?'自分が関わる案件':'受付・案件')+'</h2><div class="sp"></div>' +
+      '<div class="filters">' +
+        '<input id="jq" placeholder="顧客名・住所で検索" value="'+esc(S.jobF.q)+'" oninput="S.jobF.q=this.value;viewJobs(true)">' +
+        '<select onchange="S.jobF.st=this.value;viewJobs()">' +
+          [['all','すべて'],['open','進行中のみ'],['stuck','滞留のみ'],['unbil','未請求のみ'],['unpaid','未入金のみ']]
+            .map(x => '<option value="'+x[0]+'"'+(S.jobF.st===x[0]?' selected':'')+'>'+x[1]+'</option>').join('') +
+          STAGE_KEYS.map(k => '<option value="'+k+'"'+(S.jobF.st===k?' selected':'')+'>'+k+'</option>').join('') +
+        '</select>' +
+      '</div></header>' +
+      (list.length ? '<div style="overflow-x:auto"><table style="min-width:1080px"><thead><tr>' +
+        '<th>受付№</th><th>顧客・現場</th><th>内容</th><th>工程</th><th>責任者</th>' +
+        '<th style="text-align:right">見積</th><th style="text-align:right">請求</th><th style="text-align:right">入金残</th>' +
+        '<th>状況</th><th></th></tr></thead><tbody>' +
+        list.map(jobRow).join('') + '</tbody></table></div>'
+        : '<div class="empty">該当する案件がありません</div>') +
+    '</section>';
+  if(keepFocus){ const i = document.getElementById('jq'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+}
+function jobRow(j){
+  const bal = balOf(j), od = overdueDays(j), stuck = isStuck(j);
+  const tds = DB.todos.filter(t => t.jobId === j.id && !t.del);
+  const flags = [];
+  if(isUnbilled(j)) flags.push('<span class="tag r">未請求 '+stageSince(j)+'日</span>');
+  else if(isUnpaid(j)) flags.push('<span class="tag '+(od>60?'r':od>0?'o':'n')+'">未入金'+(od?' '+od+'日超過':'')+'</span>');
+  if(stuck && !isUnbilled(j)) flags.push('<span class="tag o">滞留 '+stageSince(j)+'日</span>');
+  const cash = (j.pays||[]).filter(p => p.method==='現金' && !p.depositId);
+  if(cash.length) flags.push('<span class="tag r">現金未納金</span>');
+  if(!flags.length && OPEN_STAGES.indexOf(j.status)>=0) flags.push('<span class="tag g">順調</span>');
+  return '<tr><td><code style="font-size:11.5px;color:var(--tx-3)">'+esc(j.code)+'</code></td>' +
+    '<td><b>'+esc(j.customer)+'</b><br><span style="font-size:11.5px;color:var(--tx-3)">'+esc(j.address)+'</span></td>' +
+    '<td>'+esc(j.title)+(tds.length?'<br><span class="tag n">ToDo '+tds.filter(t=>!t.done).length+'/'+tds.length+'</span>':'')+'</td>' +
+    '<td><span class="tag" style="background:'+STAGE_COLOR[j.status]+'22;color:'+STAGE_COLOR[j.status]+'">'+esc(j.status)+'</span></td>' +
+    '<td>'+(j.owner?avatar(staffById(j.owner)):'<span class="tag n">未定</span>')+'</td>' +
+    '<td style="text-align:right">'+(j.est?money(j.est):'—')+'</td>' +
+    '<td style="text-align:right">'+(j.inv?money(j.inv):'—')+'</td>' +
+    '<td style="text-align:right"><b style="color:'+(bal>0?'var(--danger)':'var(--tx-3)')+'">'+(j.inv?money(bal):'—')+'</b></td>' +
+    '<td>'+flags.join(' ')+'</td>' +
+    '<td style="white-space:nowrap"><button class="btn sm" onclick="openJob(\''+j.id+'\')">開く</button></td></tr>';
+}
+/* ============================================================
+   ToDo
+   ============================================================ */
+const SCOPES = {job:'案件', personal:'個人', shared:'共有'};
+function viewTodo(){
+  purgeOld();
+  const tab = S.todoF.tab;
+  let list = myTodos(tab==='done' ? doneTodos() : tab==='bin' ? binTodos() : liveTodos());
+  if(S.todoF.cat !== 'all') list = list.filter(t => (t.cat||'') === (S.todoF.cat==='none'?'':S.todoF.cat));
+  if(S.todoF.scope !== 'all') list = list.filter(t => t.scope === S.todoF.scope);
+  if(!isMe() && S.todoF.who !== 'all') list = list.filter(t => (t.who||[]).includes(S.todoF.who));
+  const rank = {'至急':0,'高':1,'中':2,'低':3};
+  if(tab === 'open') list.sort((a,b) => (a.due||'9999').localeCompare(b.due||'9999') || (rank[a.prio]??9)-(rank[b.prio]??9));
+
+  const t0 = today(), base = myTodos(liveTodos());
+  const over = base.filter(t => t.due && t.due < t0).length;
+  const dueT = base.filter(t => t.due === t0).length;
+  const open = base.length;
+  const nDone = myTodos(doneTodos()).length, nBin = myTodos(binTodos()).length;
+
+  document.getElementById('body').innerHTML =
+    '<div class="stats">' +
+      stat('未完了', open, '件', open?'var(--info)':'var(--ok)', 'todoOpen') +
+      stat('期限切れ', over, '件', over?'var(--danger)':'var(--ok)', 'todoOver') +
+      stat('本日期限', dueT, '件', dueT?'var(--warn)':'var(--ok)', 'todoToday') +
+      stat('完了フォルダ', nDone, '件', 'var(--ok)') +
+    '</div>' +
+    catBar() +
+    '<section class="panel"><header><h2>' + (S.todoF.cat==='all' ? 'ToDoリスト' :
+        (S.todoF.cat==='none' ? '未分類' : esc(tcatName(S.todoF.cat)))) + '</h2>' +
+      (S.todoF.cat!=='all' && S.todoF.cat!=='none'
+        ? '<button class="btn sm" onclick="openCat(\''+S.todoF.cat+'\')">カテゴリーを編集</button>' : '') +
+      '<div class="sp"></div>' +
+      '<div class="filters">' +
+        '<select onchange="S.todoF.scope=this.value;viewTodo()">' +
+          '<option value="all">すべての種類</option>' +
+          Object.keys(SCOPES).map(k => '<option value="'+k+'"'+(S.todoF.scope===k?' selected':'')+'>'+SCOPES[k]+'</option>').join('') + '</select>' +
+        (isMe() ? '' : '<select onchange="S.todoF.who=this.value;viewTodo()"><option value="all">すべての担当者</option>' +
+          activeStaff().map(s => '<option value="'+s.id+'"'+(S.todoF.who===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') + '</select>') +
+      '</div></header>' +
+      '<div class="pad"><div class="modesw" style="margin:0 0 12px">' +
+        ['open|進行中|'+open, 'done|完了フォルダ|'+nDone, 'bin|ゴミ箱|'+nBin].map(x => {
+          const [v,l,n] = x.split('|');
+          return '<button class="'+(tab===v?'on':'')+'" onclick="S.todoF.tab=\''+v+'\';viewTodo()">'+l+' '+n+'</button>';
+        }).join('') + '</div>' +
+        (tab!=='open' ? '<div class="hintline" style="margin:-4px 0 10px">' +
+          (tab==='done' ? '完了したToDoはここに保管され、' : '削除したToDoはここに残り、') +
+          keepDays()+'日後に自動で消去されます。' +
+          (list.length ? '　<button class="btn sm" onclick="'+(tab==='done'?'emptyDone()':'emptyBin()')+'">いますぐ全部消す</button>' : '') +
+          '</div>' : '') +
+        (list.length ? (tab==='open' && S.todoF.cat==='all' ? groupedTodos(list) : list.map(todoRow).join(''))
+          : '<div class="empty">' + (tab==='done' ? '完了したToDoはありません' : tab==='bin' ? 'ゴミ箱は空です' : '該当するToDoはありません') + '</div>') +
+      '</div>' +
+    '</section>';
+}
+function emptyDone(){
+  if(!confirm('完了フォルダのToDoをすべて完全に削除します。よろしいですか？')) return;
+  const keep = DB.todos.filter(t => !(!t.del && t.done));
+  const removed = DB.todos.filter(t => (!t.del && t.done));
+  DB.todos = keep; save(); render();
+  toast(removed.length+'件を削除しました', ()=>{ DB.todos = DB.todos.concat(removed); });
+}
+function emptyBin(){
+  if(!confirm('ゴミ箱を空にします。この操作は元に戻せません。')) return;
+  DB.todos = DB.todos.filter(t => !t.del); save(); render(); toast('ゴミ箱を空にしました');
+}
+function groupedTodos(list){
+  const order = DB.cats.map(c => c.id).concat(['']);
+  const out = [];
+  order.forEach(id => {
+    const g = list.filter(t => (t.cat||'') === id);
+    if(!g.length) return;
+    const col = id ? tcatColor(id) : '#9aa3ae';
+    out.push('<div style="display:flex;align-items:center;gap:8px;margin:14px 0 8px">' +
+      '<i style="width:10px;height:10px;border-radius:50%;background:'+col+'"></i>' +
+      '<b style="font-size:13px">'+esc(id?tcatName(id):'未分類')+'</b>' +
+      '<span class="tag n">'+g.length+'</span>' +
+      (id ? '<button class="btn sm gh" style="color:var(--tx-3)" onclick="openCat(\''+id+'\')">編集</button>' : '') +
+      '</div>' + g.map(todoRow).join(''));
+  });
+  return out.join('');
+}
+function catBar(){
+  const cnt = id => myTodos(liveTodos()).filter(t => (id==='all' ? true : (t.cat||'') === (id==='none'?'':id))).length;
+  const chip = (id, name, color) =>
+    '<button type="button" class="'+(S.todoF.cat===id?'on':'')+'" onclick="S.todoF.cat=\''+id+'\';viewTodo()" ' +
+    'style="'+(S.todoF.cat===id&&color?'border-color:'+color+';background:'+color+';color:#fff':'')+'">' +
+    (color?'<i style="width:9px;height:9px;border-radius:50%;background:'+(S.todoF.cat===id?'#fff':color)+';display:inline-block;margin-right:6px"></i>':'') +
+    esc(name) + '<b style="margin-left:7px;opacity:.7;font-weight:700">'+cnt(id)+'</b></button>';
+  return '<section class="panel"><header><h2>カテゴリー</h2>' +
+    '<span class="hint">クリックで絞り込み。自由に追加・編集できます</span><div class="sp"></div>' +
+    '<button class="btn sm" onclick="openCat()">＋ カテゴリーを追加</button></header>' +
+    '<div class="pad"><div class="pick plain" style="gap:8px">' +
+      chip('all','すべて','') +
+      DB.cats.map(c => chip(c.id, c.name, c.color)).join('') +
+      chip('none','未分類','') +
+    '</div></div></section>';
+}
+
+function todoRow(t){
+  const j = t.jobId ? jobById(t.jobId) : null;
+  const t0 = today();
+  const late = !t.done && t.due && t.due < t0;
+  const soon = !t.done && t.due === t0;
+  const doneN = (t.subs||[]).filter(x => x.d).length, allN = (t.subs||[]).length;
+  return '<div class="todo'+(t.done?' done':'')+'">' +
+    '<button class="ck" onclick="'+(t.del?'restoreTodo':'toggleTodo')+'(\''+t.id+'\')" title="'+(t.del?'復元する':'完了にする')+'">'+(t.done?'✓':'')+'</button>' +
+    '<div class="bd">' +
+      '<div class="ttl">'+esc(t.title)+'</div>' +
+      '<div class="meta">' +
+        tcatTag(t.cat) +
+        '<span class="tag '+(t.scope==='job'?'b':t.scope==='shared'?'n':'g')+'">'+SCOPES[t.scope]+'</span>' +
+        (j ? '<span class="tag n">'+esc(j.customer)+'</span>' : '') +
+        '<span class="tag '+(PRIOS[t.prio]||'n')+'">'+esc(t.prio)+'</span>' +
+        (t.due ? '<span class="tag '+(late?'r':soon?'o':'n')+'">'+(late?'期限切れ ':soon?'本日 ':'')+fmtD(t.due)+'</span>' : '') +
+        avatars(t.who) +
+        (t.memo ? '<span class="tag n" title="'+esc(t.memo)+'">メモ</span>' : '') +
+      '</div>' +
+      (t.del || t.done ? '<div class="meta">' +
+        (t.done && t.doneAt ? '<span class="tag g">完了 '+esc(dayOf(t.doneAt).slice(5).replace('-','/'))+'</span>' : '') +
+        (t.del && t.delAt   ? '<span class="tag r">削除 '+esc(dayOf(t.delAt).slice(5).replace('-','/'))+'</span>' : '') +
+        '<span class="tag n">あと'+Math.max(0, keepDays() - daysAgo(t.del ? t.delAt : t.doneAt))+'日で自動消去</span>' +
+        '</div>' : '') +
+      (allN ? '<div class="subs">' + t.subs.map((x,i) =>
+        '<button class="sub'+(x.d?' done':'')+'" onclick="toggleSub(\''+t.id+'\','+i+')">' +
+        '<span class="ck">'+(x.d?'✓':'')+'</span>'+esc(x.t)+'</button>').join('') +
+        '</div><div class="bar"><i style="width:'+Math.round(doneN/allN*100)+'%"></i></div>' : '') +
+    '</div>' +
+    '<div class="acts">' +
+      (t.del
+        ? '<button class="btn sm" onclick="restoreTodo(\''+t.id+'\')">復元</button>' +
+          '<button class="btn sm dg" onclick="purgeTodo(\''+t.id+'\')">完全に削除</button>'
+        : (t.done
+            ? '<button class="btn sm" onclick="toggleTodo(\''+t.id+'\')">戻す</button>' +
+              '<button class="btn sm dg" onclick="trashTodo(\''+t.id+'\')">削除</button>'
+            : '<button class="btn sm" title="予定に変換" onclick="todoToSch(\''+t.id+'\')">→予定</button>' +
+              '<button class="btn sm" onclick="openTodo(\''+t.id+'\')">編集</button>')) +
+    '</div></div>';
+}
+function toggleTodo(id){
+  const t = DB.todos.find(x=>x.id===id); if(!t) return;
+  const was = t.done;
+  t.done = !t.done;
+  t.doneAt = t.done ? nowISO() : '';
+  save(); render();
+  if(t.done) toast('完了フォルダに保管しました', ()=>{ t.done = was; t.doneAt = ''; });
+}
+function trashTodo(id){
+  const t = DB.todos.find(x=>x.id===id); if(!t) return;
+  t.del = true; t.delAt = nowISO(); save(); render();
+  toast('ゴミ箱に移しました（'+keepDays()+'日間は復元できます）', ()=>{ t.del = false; t.delAt = ''; });
+}
+function restoreTodo(id){
+  const t = DB.todos.find(x=>x.id===id); if(!t) return;
+  t.del = false; t.delAt = ''; save(); render(); toast('復元しました');
+}
+function purgeTodo(id){
+  if(!confirm('このToDoを完全に削除します。元に戻せません。')) return;
+  const t = DB.todos.find(x=>x.id===id);
+  DB.todos = DB.todos.filter(x => x.id !== id); save(); render();
+  toast('完全に削除しました', ()=>{ DB.todos.push(t); });
+}
+function toggleSub(id,i){ const t = DB.todos.find(x=>x.id===id); t.subs[i].d = !t.subs[i].d;
+  if(t.subs.every(s=>s.d) && !t.done){ t.done = true; t.doneAt = nowISO(); } save(); render(); }
+function todoToSch(id){
+  const t = DB.todos.find(x=>x.id===id); const j = t.jobId ? jobById(t.jobId) : null;
+  openSch(null, t.jobId||null, t.due||S.date, null, {title:t.title, who:(t.who||[]).slice(), note:t.memo||'', fromTodo:t.id, address:j?j.address:''});
+}
+
+/* ============================================================
+   売掛会議（未請求・未入金・現金の点検）
+   ============================================================ */
+function alertCount(){
+  const l = visibleJobs();
+  return l.filter(isUnbilled).length + l.filter(j => isUnpaid(j) && overdueDays(j) > 0).length + cashHeldRows().length;
+}
+function viewSales(){
+  const mm = S.month, all = visibleJobs();
+  const unbilled = all.filter(isUnbilled).sort((a,b)=>stageSince(b)-stageSince(a));
+  const unpaid   = all.filter(isUnpaid).sort((a,b)=>overdueDays(b)-overdueDays(a));
+  const cashRows = cashHeldRows();
+  const inMonth = arr => arr.filter(Boolean);
+  const invM = all.filter(j => (j.invDate||'').startsWith(mm));
+  const payM = all.flatMap(j => (j.pays||[]).filter(p => (p.date||'').startsWith(mm)).map(p => ({j,p})));
+  const sum = a => a.reduce((x,y)=>x+y,0);
+  const unbilledYen = sum(unbilled.map(j => j.order || j.est || 0));
+  const unpaidYen   = sum(unpaid.map(balOf));
+  const over60      = unpaid.filter(j => overdueDays(j) > 60);
+  const cashYen     = sum(cashRows.map(r => r.amount));
+  const closed = (DB.closes||[]).find(c => c.month === mm);
+  const prev = (DB.closes||[]).slice().sort((a,b)=>a.month.localeCompare(b.month)).slice(-6);
+
+  document.getElementById('body').innerHTML =
+    '<div class="kpi">' +
+      stat('未請求（完工済）', unbilled.length, '件 '+money(unbilledYen), unbilled.length?'var(--danger)':'var(--ok)') +
+      stat('請求済・未入金', unpaid.length, '件 '+money(unpaidYen), unpaid.length?'var(--warn)':'var(--ok)') +
+      stat('60日超の未入金', over60.length, '件 '+money(sum(over60.map(balOf))), over60.length?'var(--danger)':'var(--ok)') +
+      stat('現金の預り残高', cashRows.length, '名 '+money(cashYen), cashYen?'var(--danger)':'var(--ok)') +
+      stat(mm+' 請求', invM.length, '件 '+money(sum(invM.map(j=>j.inv||0))), 'var(--info)') +
+      stat(mm+' 入金', payM.length, '件 '+money(sum(payM.map(x=>x.p.amount||0))), 'var(--ok)') +
+    '</div>' +
+
+    '<section class="panel"><header><h2>① 未請求（完工したのに請求書が出ていない）</h2>' +
+      '<span class="hint">売上の取りこぼしはここに出ます</span></header>' +
+      (unbilled.length ? '<div style="overflow-x:auto"><table style="min-width:900px"><thead><tr>' +
+        '<th>受付№</th><th>顧客</th><th>内容</th><th>責任者</th><th style="text-align:right">受注/見積</th>' +
+        '<th>完工から</th><th>メモ</th><th></th></tr></thead><tbody>' +
+        unbilled.map(j => '<tr><td><code style="font-size:11.5px">'+esc(j.code)+'</code></td>' +
+          '<td><b>'+esc(j.customer)+'</b></td><td>'+esc(j.title)+'</td>' +
+          '<td>'+(j.owner?avatar(staffById(j.owner)):'<span class="tag n">未定</span>')+'</td>' +
+          '<td style="text-align:right" class="mono">'+money(j.order||j.est)+'</td>' +
+          '<td><span class="tag '+(stageSince(j)>slaOf('完工')?'r':'o')+'">'+stageSince(j)+'日</span></td>' +
+          '<td style="font-size:11.5px;color:var(--tx-3)">'+esc(lastNote(j))+'</td>' +
+          '<td><button class="btn sm pri" onclick="openJobMoney(\''+j.id+'\')">請求を登録</button></td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="empty">未請求はありません 👍</div>') +
+    '</section>' +
+
+    '<section class="panel"><header><h2>② 請求済・未入金</h2>' +
+      '<span class="hint">経過日数の長い順。60日超は赤</span></header>' +
+      (unpaid.length ? '<div style="overflow-x:auto"><table style="min-width:980px"><thead><tr>' +
+        '<th>請求№</th><th>顧客</th><th>請求日</th><th>期日</th>' +
+        '<th style="text-align:right">請求</th><th style="text-align:right">入金</th><th style="text-align:right">残高</th>' +
+        '<th>経過</th><th>メモ</th><th></th></tr></thead><tbody>' +
+        unpaid.map(j => { const od = overdueDays(j);
+          return '<tr><td><code style="font-size:11.5px">'+esc(j.invNo||'—')+'</code></td>' +
+          '<td><b>'+esc(j.customer)+'</b><br><span style="font-size:11px;color:var(--tx-3)">'+esc(j.title)+'</span></td>' +
+          '<td>'+esc(j.invDate||'—')+'</td><td>'+esc(j.due||'—')+'</td>' +
+          '<td style="text-align:right" class="mono">'+money(j.inv)+'</td>' +
+          '<td style="text-align:right" class="mono">'+money(paidOf(j))+'</td>' +
+          '<td style="text-align:right" class="mono"><b>'+money(balOf(j))+'</b></td>' +
+          '<td>'+(od ? '<span class="tag '+(od>60?'r':'o')+'">'+od+'日超過</span>' : '<span class="tag n">期日内</span>')+'</td>' +
+          '<td style="font-size:11.5px;color:var(--tx-3)">'+esc(lastNote(j))+'</td>' +
+          '<td style="white-space:nowrap"><button class="btn sm pri" onclick="openJobMoney(\''+j.id+'\')">入金登録</button> ' +
+          '<button class="btn sm" onclick="openJobNote(\''+j.id+'\')">メモ</button></td></tr>'; }).join('') +
+        '</tbody></table></div>' : '<div class="empty">未入金はありません 👍</div>') +
+    '</section>' +
+
+    '<section class="panel"><header><h2>③ 現金の預り残高（担当者ごと）</h2>' +
+      '<span class="hint">集金したが会社へ納めていない現金。ここが0でない人は必ず確認</span></header>' +
+      (cashRows.length ? '<div class="pad">' + cashRows.map(r =>
+        '<div class="todo"><div class="bd"><div class="ttl">'+avatar(r.s)+'　'+esc(r.s.name)+'　' +
+          '<span class="tag r mono">'+money(r.amount)+'</span></div>' +
+          '<div class="meta">' + r.items.map(x =>
+            '<span class="tag n">'+esc(x.j.customer)+' '+money(x.p.amount)+'（領収書'+esc(x.p.receiptNo||'番号なし')+'・'+esc(x.p.date)+'）</span>').join('') +
+          '</div></div>' +
+        '<div class="acts"><button class="btn sm pri" onclick="openDeposit(\''+r.s.id+'\')">納金を登録</button></div></div>').join('') + '</div>'
+        : '<div class="empty">未納金の現金はありません 👍</div>') +
+    '</section>' +
+
+    '<section class="panel"><header><h2>④ '+mm+' の締め</h2>' +
+      (closed ? '<span class="tag g">締め済み '+esc(dayOf(closed.at))+'</span>' : '<span class="hint">会議の最後に「この月を締める」を押すと記録が残ります</span>') +
+      '</header>' +
+      (prev.length ? '<table><thead><tr><th>月</th><th>未請求</th><th>未入金</th><th>60日超</th><th>現金預り</th><th>締め日</th><th>操作者</th></tr></thead><tbody>' +
+        prev.slice().reverse().map(c => '<tr><td><b>'+esc(c.month)+'</b></td>' +
+          '<td class="mono">'+c.unbilled+'件 '+money(c.unbilledYen)+'</td>' +
+          '<td class="mono">'+c.unpaid+'件 '+money(c.unpaidYen)+'</td>' +
+          '<td class="mono">'+c.over60+'件</td>' +
+          '<td class="mono">'+money(c.cashYen)+'</td>' +
+          '<td>'+esc(dayOf(c.at))+'</td><td>'+esc(c.byName||'')+'</td></tr>').join('') + '</tbody></table>'
+        : '<div class="empty">まだ締めた月はありません</div>') +
+    '</section>' +
+
+    '<section class="panel"><header><h2>⑤ 変更履歴（直近100件）</h2>' +
+      '<span class="hint">金額・工程・入金の変更は誰がいつ行ったか残ります</span></header>' +
+      ((DB.log||[]).length ? '<div style="max-height:340px;overflow:auto"><table><thead><tr>' +
+        '<th>日時</th><th>操作者</th><th>対象</th><th>項目</th><th>変更</th></tr></thead><tbody>' +
+        DB.log.slice(-100).reverse().map(l => '<tr>' +
+          '<td style="font-size:11.5px;white-space:nowrap">'+esc(dayOf(l.at))+' '+esc((l.at||'').slice(11,16))+'</td>' +
+          '<td>'+esc(l.byName||'—')+'</td><td style="font-size:11.5px">'+esc(l.title)+'</td>' +
+          '<td>'+esc(l.field)+'</td><td style="font-size:11.5px">'+esc(l.from)+' → <b>'+esc(l.to)+'</b></td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="empty">履歴はまだありません</div>') +
+    '</section>';
+}
+function lastNote(j){ const n = (j.notes||[]); return n.length ? n[n.length-1].text : ''; }
+function openJobMoney(id){ openJob(id); M._tab = 'money'; drawJob(); }
+function openJobNote(id){ openJob(id); M._tab = 'note'; drawJob(); }
+
+/* ---------- 納金（現金を会社へ入れる） ---------- */
+function openDeposit(staffId){
+  const rows = cashHeldRows().find(r => r.s.id === staffId);
+  M = {staffId, date: today(), amount: rows ? rows.amount : 0, receivedBy: actor()||'', note:'', items: rows?rows.items:[]};
+  drawDeposit();
+}
+function drawDeposit(){
+  const s0 = staffById(M.staffId);
+  shell('納金の登録　—　' + esc((s0||{}).name||''),
+    '<div class="hintline">対象の集金（'+M.items.length+'件）</div>' +
+    '<div class="sec">' + (M.items.length ? M.items.map(x =>
+      '<div style="display:flex;justify-content:space-between;font-size:12.5px">' +
+      '<span>'+esc(x.j.customer)+'　領収書'+esc(x.p.receiptNo||'—')+'　'+esc(x.p.date)+'</span>' +
+      '<b class="mono">'+money(x.p.amount)+'</b></div>').join('') : '<div class="hintline">対象なし</div>') +
+    '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:8px">' +
+      '<b>合計</b><b class="mono">'+money(M.amount)+'</b></div></div>' +
+    '<div class="grid2">' +
+      f('納金日','<input type="date" value="'+M.date+'" onchange="M.date=this.value">') +
+      f('受け取った人','<select onchange="M.receivedBy=this.value"><option value="">選択してください</option>' +
+        activeStaff().map(s=>'<option value="'+s.id+'"'+(M.receivedBy===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') + '</select>') +
+    '</div>' +
+    f('備考','<input value="'+esc(M.note)+'" oninput="M.note=this.value">') +
+    '<div class="hintline">受け取った人は、集金した本人以外を選ぶ運用にしてください（相互チェックになります）。</div>',
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveDeposit()">納金を登録</button>');
+}
+function saveDeposit(){
+  if(!M.items.length){ alert('対象の集金がありません'); return; }
+  if(!M.receivedBy){ alert('受け取った人を選んでください'); return; }
+  const s0 = staffById(M.staffId);
+  const dep = {id:uid('dep'), date:M.date, staffId:M.staffId, amount:M.amount,
+    receivedBy:M.receivedBy, note:M.note, by:actor(), byName:actorName(), at:nowISO(),
+    payIds: M.items.map(x => x.p.id)};
+  DB.deposits.push(dep);
+  M.items.forEach(x => { x.p.depositId = dep.id; });
+  logIt('納金', dep.id, (s0||{}).name+' の現金納金', '納金', '', money(M.amount) + '（受領：'+((staffById(M.receivedBy)||{}).name||'')+'）');
+  save(); closeM(); render(); toast('納金を登録しました');
+}
+/* ---------- 月次の締め ---------- */
+function closeMonth(){
+  const mm = S.month, all = DB.jobs;
+  const unbilled = all.filter(isUnbilled), unpaid = all.filter(isUnpaid);
+  const sum = a => a.reduce((x,y)=>x+y,0);
+  const rec = {month:mm, at:nowISO(), by:actor(), byName:actorName(),
+    unbilled:unbilled.length, unbilledYen:sum(unbilled.map(j=>j.order||j.est||0)),
+    unpaid:unpaid.length, unpaidYen:sum(unpaid.map(balOf)),
+    over60:unpaid.filter(j=>overdueDays(j)>60).length,
+    cashYen:sum(cashHeldRows().map(r=>r.amount))};
+  if(!confirm(mm+' を締めます。この時点の未請求・未入金・現金残高を記録します。よろしいですか？')) return;
+  DB.closes = (DB.closes||[]).filter(c => c.month !== mm).concat([rec]);
+  logIt('締め', rec.month, mm+' 売掛会議', '月次締め', '', '未請求'+rec.unbilled+'件／未入金'+rec.unpaid+'件');
+  save(); render(); toast(mm+' を締めました');
+}
+
+/* ============================================================
+   日報
+   ============================================================ */
+function viewReport(){
+  const d = S.date;
+  let list = DB.reports.filter(r => r.date === d);
+  if(isMe()) list = list.filter(r => (r.who||[]).includes(S.me));
+  const done = mySch(DB.sch.filter(e => e.date === d));
+  document.getElementById('body').innerHTML =
+    '<section class="panel"><header><h2>'+fmtD(d)+' の日報</h2><div class="sp"></div>' +
+      '<span class="hint">担当者ごとに作業内容と実働を記録</span></header>' +
+      (list.length ? '<div class="pad">' + list.map(r =>
+        '<div class="todo"><div class="bd"><div class="ttl">'+avatars(r.who)+' '+esc(whoNames(r.who))+'　<span class="tag n">実働 '+r.hours+'h</span></div>' +
+        '<div style="white-space:pre-wrap;margin-top:6px;font-size:12.5px;color:var(--tx-2)">'+esc(r.body)+'</div></div>' +
+        '<div class="acts"><button class="btn sm" onclick="openReport(\''+r.id+'\')">編集</button></div></div>').join('') + '</div>'
+        : '<div class="empty">この日の日報はまだありません</div>') +
+    '</section>' +
+    '<section class="panel"><header><h2>この日の予定（参考）</h2></header>' +
+      (done.length ? '<table><thead><tr><th>時間</th><th>件名</th><th>担当</th><th>移動</th></tr></thead><tbody>' +
+        done.sort((a,b)=>toMin(a.start)-toMin(b.start)).map(e =>
+        '<tr><td>'+e.start+'–'+e.end+'</td><td>'+esc(e.title)+'</td><td>'+esc(whoNames(e.who))+'</td>' +
+        '<td>'+(((e.out|0)+(e.back|0))?('往'+(e.out|0)+'／復'+(e.back|0)+'分'):'—')+'</td></tr>').join('') + '</tbody></table>'
+        : '<div class="empty">予定はありません</div>') +
+    '</section>';
+}
+
+/* ============================================================
+   勤怠・休暇
+   ============================================================ */
+const ATD = ['出勤','有給','半休','代休','欠勤','直行直帰'];
+function viewAtd(){
+  const d = S.date;
+  document.getElementById('body').innerHTML =
+    '<section class="panel"><header><h2>'+fmtD(d)+' の勤怠</h2></header>' +
+      '<table><thead><tr><th>担当者</th><th>区分</th><th>備考</th><th>予定件数</th><th></th></tr></thead><tbody>' +
+      boardStaff().map(s => {
+        const a = DB.atd.find(x => x.date===d && x.who===s.id);
+        const n = DB.sch.filter(e => e.date===d && e.who.includes(s.id)).length;
+        return '<tr><td><div style="display:flex;align-items:center;gap:8px">'+avatar(s)+esc(s.name)+'</div></td>' +
+          '<td><span class="tag '+(!a||a.type==='出勤'?'g':'b')+'">'+esc(a?a.type:'出勤')+'</span></td>' +
+          '<td>'+esc(a?a.note:'')+'</td><td>'+n+'件</td>' +
+          '<td><button class="btn sm" onclick="openAtd(\''+s.id+'\')">変更</button></td></tr>';
+      }).join('') + '</tbody></table></section>' +
+    '<section class="panel"><header><h2>今月の休暇一覧</h2></header>' +
+      (function(){
+        const m = d.slice(0,7);
+        const l = DB.atd.filter(a => a.date.startsWith(m) && a.type !== '出勤' && (!isMe() || a.who === S.me))
+                        .sort((a,b)=>a.date.localeCompare(b.date));
+        return l.length ? '<table><thead><tr><th>日付</th><th>担当者</th><th>区分</th><th>備考</th></tr></thead><tbody>' +
+          l.map(a => '<tr><td>'+fmtD(a.date)+'</td><td>'+esc((staffById(a.who)||{}).name||'')+'</td>' +
+          '<td><span class="tag b">'+esc(a.type)+'</span></td><td>'+esc(a.note)+'</td></tr>').join('') + '</tbody></table>'
+          : '<div class="empty">今月の休暇登録はありません</div>';
+      })() +
+    '</section>';
+}
+
+/* ============================================================
+   設定
+   ============================================================ */
+function viewCfg(){
+  const c = DB.cfg;
+  document.getElementById('body').innerHTML =
+    '<section class="panel"><header><h2>移動時間の設定</h2></header><div class="pad" style="display:flex;flex-direction:column;gap:14px">' +
+      '<div class="f"><label>出発地（自社）</label>' +
+        '<input value="'+esc(c.origin)+'" onchange="DB.cfg.origin=this.value;save();toast(\'保存しました\')"></div>' +
+      '<div class="f"><label>Google Maps APIキー（この端末のブラウザにのみ保存されます）</label>' +
+        '<input type="password" placeholder="AIza..." value="'+esc(c.apiKey)+'" onchange="DB.cfg.apiKey=this.value.trim();Maps.ready=false;Maps.loading=null;save();toast(\'保存しました\')">' +
+        '<span class="hintline">Google Cloud で <b>Maps JavaScript API</b> を有効化したキーが必要です。HTTPリファラー制限の設定を推奨。未設定でも下の目安表で計算できます。</span></div>' +
+      '<div class="grid3">' +
+        '<div class="f"><label>移動時間の自動計算</label><select onchange="DB.cfg.autoTravel=this.value===\'1\';save()">' +
+          '<option value="1"'+(c.autoTravel?' selected':'')+'>する</option><option value="0"'+(!c.autoTravel?' selected':'')+'>しない</option></select></div>' +
+        '<div class="f"><label>既定の移動時間（分）</label><input type="number" min="0" value="'+c.defBuffer+'" onchange="DB.cfg.defBuffer=+this.value||0;save()"></div>' +
+        '<div class="f"><label>ボード表示時間</label><div style="display:flex;gap:6px">' +
+          '<input type="number" min="0" max="23" value="'+c.wStart+'" onchange="DB.cfg.wStart=+this.value;save();render()">' +
+          '<input type="number" min="1" max="24" value="'+c.wEnd+'" onchange="DB.cfg.wEnd=+this.value;save();render()"></div></div>' +
+      '</div>' +
+      '<div class="f"><label>移動時間の目安表（住所にキーワードが含まれたら該当分を使用。APIが使えない時のフォールバック）</label>' +
+        '<div id="tt"></div>' +
+        '<button class="btn sm" onclick="addTT()">＋ 行を追加</button></div>' +
+    '</div></section>' +
+
+    '<section class="panel"><header><h2>担当者</h2><div class="sp"></div>' +
+      '<button class="btn sm" onclick="addStaff()">＋ 追加</button></header>' +
+      '<table><thead><tr><th>名前（表示）</th><th>氏名</th><th>メールアドレス</th><th>色</th><th>状態</th><th></th></tr></thead><tbody>' +
+      DB.staff.map((s,i) => '<tr>' +
+        '<td><input value="'+esc(s.name)+'" onchange="DB.staff['+i+'].name=this.value;save();render()" style="width:80px;padding:5px;border:1px solid var(--line);border-radius:7px"></td>' +
+        '<td><input value="'+esc(s.full||'')+'" onchange="DB.staff['+i+'].full=this.value;save()" style="width:110px;padding:5px;border:1px solid var(--line);border-radius:7px"></td>' +
+        '<td><input value="'+esc(s.mail||'')+'" placeholder="xxx@example.com" onchange="DB.staff['+i+'].mail=this.value.trim();save()" style="width:190px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:12px"></td>' +
+        '<td><input type="color" value="'+s.color+'" onchange="DB.staff['+i+'].color=this.value;save();render()" style="width:44px;height:30px;border:none;background:none"></td>' +
+        '<td><select onchange="DB.staff['+i+'].active=this.value===\'1\';save();render()">' +
+          '<option value="1"'+(s.active!==false?' selected':'')+'>在籍</option><option value="0"'+(s.active===false?' selected':'')+'>非表示</option></select></td>' +
+        '<td><button class="btn sm dg" onclick="delStaff(\''+s.id+'\')">削除</button></td></tr>').join('') +
+      '</tbody></table></section>' +
+
+    '<section class="panel"><header><h2>操作者と記録</h2></header><div class="pad">' +
+      '<div class="grid2">' +
+        '<div class="f"><label>この端末を使う人（操作者）</label>' +
+          '<select onchange="setActor(this.value)"><option value="">未設定</option>' +
+          activeStaff().map(s=>'<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.full||s.name)+'</option>').join('') +
+          '</select><span class="hintline">金額・工程・入金の変更は、この人の名前で履歴に残ります。</span></div>' +
+        '<div class="f"><label>現金の預り上限（超えたら警告）</label>' +
+          '<input type="number" min="0" step="10000" value="'+(DB.cfg.cashLimit||0)+'" onchange="DB.cfg.cashLimit=+this.value||0;save()">' +
+          '<span class="hintline">1人がこの金額以上の現金を持ち越したら注意表示します。</span></div>' +
+      '</div></div></section>' +
+
+    '<section class="panel"><header><h2>工程ごとの目安日数（滞留アラート）</h2>' +
+      '<span class="hint">この日数を超えると要対応として表示します</span></header><div class="pad">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">' +
+      STAGES.filter(x=>x.k!=='完了'&&x.k!=='失注').map(x =>
+        '<div style="display:flex;align-items:center;gap:6px">' +
+        '<span style="flex:1;font-size:12.5px"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+STAGE_COLOR[x.k]+';margin-right:6px"></i>'+x.k+'</span>' +
+        '<input type="number" min="0" value="'+slaOf(x.k)+'" onchange="DB.cfg.sla=DB.cfg.sla||{};DB.cfg.sla[\''+x.k+'\']=+this.value||0;save();render()" ' +
+        'style="width:64px;padding:5px;border:1px solid var(--line);border-radius:7px"><span class="hintline">日</span></div>').join('') +
+      '</div></div></section>' +
+
+    '<section class="panel"><header><h2>Googleスプレッドシート同期</h2>' +
+      (DB.cfg.lastSync ? '<span class="tag g">最終同期 '+esc(dayOf(DB.cfg.lastSync))+' '+esc((DB.cfg.lastSync||'').slice(11,16))+'</span>' : '<span class="tag n">未接続</span>') +
+      '</header><div class="pad" style="display:flex;flex-direction:column;gap:12px">' +
+      '<div class="f"><label>Apps Script の Web アプリ URL</label>' +
+        '<input value="'+esc(DB.cfg.gasUrl||'')+'" placeholder="https://script.google.com/macros/s/..../exec" ' +
+        'onchange="DB.cfg.gasUrl=this.value.trim();save();render()"></div>' +
+      '<div class="f"><label>合言葉（Apps Script 側と同じ文字列）</label>' +
+        '<input value="'+esc(DB.cfg.gasToken||'')+'" onchange="DB.cfg.gasToken=this.value.trim();save()">' +
+        '<span class="hintline">URLを知られても、この合言葉が合わないと読み書きできません。</span></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+        '<button class="btn pri" onclick="doSync()">いま同期する</button>' +
+        '<label style="display:flex;align-items:center;gap:7px;font-size:13px">' +
+        '<input type="checkbox" '+(DB.cfg.autoSync!==false?'checked':'')+' onchange="DB.cfg.autoSync=this.checked;save();startAutoSync();render()" ' +
+        'style="width:16px;height:16px"> 自動で同期する（起動時・3分ごと・入力後）</label></div>' +
+      '<div class="sec"><h4>他の端末に配る<span class="sp"></span>' +
+        '<button class="btn sm" onclick="makeSetupLink()">配布リンクを作る</button></h4>' +
+        '<input id="shareLink" readonly placeholder="ボタンを押すとここに出ます" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:12px">' +
+        '<div class="hintline">このリンクをLINEなどで送ると、受け取った人はタップするだけで同期設定が入り、名前を選ぶ画面が出ます。合言葉が含まれるので、社内の人にだけ送ってください。</div>' +
+        '<button class="btn sm" onclick="openWizard()">この端末の初期設定をやり直す</button></div>' +
+      '<div class="hintline">同期は<b>予定・ToDo・案件ごとに新しいほうを採用</b>します。事務所と現場で同時に入力しても、お互いの入力が消えることはありません。設定手順は別紙「Googleスプレッドシート連携 手順書」をご覧ください。</div>' +
+      '</div></section>' +
+
+    '<section class="panel"><header><h2>お知らせ・通知</h2>' +
+      '<span class="hint">他の人が入力した内容に気づくための設定</span></header><div class="pad" style="display:flex;flex-direction:column;gap:14px">' +
+      '<div class="grid2">' +
+        '<div class="f"><label>更新の確認間隔</label>' +
+          '<select onchange="DB.cfg.pollSec=+this.value;save();startAutoSync();render()">' +
+          [10,15,30,60,120,300].map(v => '<option value="'+v+'"'+((DB.cfg.pollSec||30)===v?' selected':'')+'>'+
+            (v<60? v+'秒ごと' : (v/60)+'分ごと')+'</option>').join('') + '</select>' +
+          '<span class="hintline">「更新があるか」だけを確認する軽い通信です。あれば自動で取り込みます。</span></div>' +
+        '<div class="f"><label>ブラウザ通知</label>' +
+          (('Notification' in window) && Notification.permission === 'granted' && DB.cfg.webNotify
+            ? '<div style="padding:9px 0"><span class="tag g">有効</span> ' +
+              '<button class="btn sm" onclick="DB.cfg.webNotify=false;save();render()">止める</button></div>'
+            : '<button class="btn" onclick="askWebNotify()">通知を許可する</button>') +
+          '<span class="hintline">パソコンとAndroidでは、画面を閉じていても端末に通知が出ます。iPhoneはホーム画面に追加したうえで、iOSの設定から許可が必要です。</span></div>' +
+      '</div>' +
+      '<div class="sec"><h4>メール通知<span class="sp"></span>' +
+        '<label style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:400">' +
+        '<input type="checkbox" '+(DB.cfg.mailNotify?'checked':'')+' onchange="DB.cfg.mailNotify=this.checked;save();render()" style="width:16px;height:16px"> 使う</label></h4>' +
+        '<div class="hintline">新しい受付を登録したとき、予定を割り当てたときに、担当者へメールを送ります。' +
+        '送信は Apps Script（会社のGoogleアカウント）から行われます。1日あたり100通までです。</div>' +
+        '<div class="f"><label>新規受付のお知らせを送る人（未選択なら全員）</label>' +
+          '<div class="pick">' + activeStaff().map(s0 =>
+            '<button type="button" class="'+((DB.cfg.mailTo||[]).includes(s0.id)?'on':'')+'" onclick="togMailTo(\''+s0.id+'\')">' +
+            avatar(s0)+esc(s0.name)+(s0.mail?'':'<span class="tag r" style="margin-left:5px">未登録</span>')+'</button>').join('') +
+          '</div><span class="hintline">メールアドレスは下の「担当者」欄で登録してください。予定の割り当ては、その予定の担当者だけに送られます。</span></div>' +
+        '<button class="btn sm" onclick="testMail()">テストメールを送る</button>' +
+      '</div>' +
+      '<div class="f"><label>お知らせの基準時刻</label>' +
+        '<div style="padding:6px 0"><span class="tag n">' + (DB.cfg.seenAt ? esc(dayOf(DB.cfg.seenAt))+' '+esc((DB.cfg.seenAt||'').slice(11,16)) : '未設定（すべて新着扱い）') + '</span> ' +
+        '<button class="btn sm" onclick="markSeenQuiet()">いまを既読にする</button></div>' +
+        '<span class="hintline">この時刻より後の、自分以外による更新が🔔に出ます。</span></div>' +
+    '</div></section>' +
+
+    '<section class="panel"><header><h2>Googleカレンダー連携（取り込み）</h2>' +
+      (DB.cfg.calAt ? '<span class="tag g">'+(DB.gcal||[]).length+'件 取得済 '+esc(dayOf(DB.cfg.calAt))+' '+esc((DB.cfg.calAt||'').slice(11,16))+'</span>' : '<span class="tag n">未取得</span>') +
+      '<div class="sp"></div><button class="btn sm" onclick="loadCals()">カレンダー一覧を取得</button>' +
+      '<button class="btn sm pri" onclick="pullCal()">いま取り込む</button></header><div class="pad">' +
+      '<div class="hintline" style="margin-bottom:10px">担当者ごとにGoogleカレンダーを指定すると、その予定がボードに<b>📅 グレーの帯</b>で表示され、<b>時間の重複チェック</b>に含まれます。カレンダー側の予定はアプリからは変更できません（読み取り専用）。</div>' +
+      '<div id="calmap">' + calMapHtml() + '</div>' +
+      '<div class="grid2" style="margin-top:12px">' +
+        '<div class="f"><label>取り込む範囲（過去）</label><input type="number" min="0" max="90" value="'+(DB.cfg.calBack||7)+'" onchange="DB.cfg.calBack=+this.value||0;save()"><span class="hintline">日前まで</span></div>' +
+        '<div class="f"><label>取り込む範囲（未来）</label><input type="number" min="1" max="365" value="'+(DB.cfg.calFwd||60)+'" onchange="DB.cfg.calFwd=+this.value||60;save()"><span class="hintline">日先まで</span></div>' +
+      '</div></div></section>' +
+
+    '<section class="panel"><header><h2>ToDoの保管</h2></header><div class="pad">' +
+      '<div class="grid2">' +
+        '<div class="f"><label>完了・削除したToDoの保管日数</label>' +
+          '<input type="number" min="1" max="365" value="'+keepDays()+'" ' +
+          'onchange="DB.cfg.keepDays=Math.max(1,+this.value||30);save();render();toast(\'保存しました\')">' +
+          '<span class="hintline">完了フォルダとゴミ箱の中身は、この日数を過ぎると自動で消去されます（既定30日）。</span></div>' +
+        '<div class="f"><label>現在の保管件数</label>' +
+          '<div style="padding:9px 0"><span class="tag g">完了 '+doneTodos().length+'件</span> ' +
+          '<span class="tag r">ゴミ箱 '+binTodos().length+'件</span></div>' +
+          '<span class="hintline">ToDo画面のタブから確認・復元できます。</span></div>' +
+      '</div></div></section>' +
+
+    '<section class="panel"><header><h2>ToDoカテゴリー</h2>' +
+      '<span class="hint">並び順は▲▼で変更できます</span><div class="sp"></div>' +
+      '<button class="btn sm" onclick="openCat()">＋ 追加</button></header>' +
+      (DB.cats.length ? '<table><thead><tr><th>カテゴリー</th><th>色</th><th>ToDo件数</th><th>並び順</th><th></th></tr></thead><tbody>' +
+        DB.cats.map((c,i) => {
+          const n = DB.todos.filter(t => t.cat === c.id && !t.del).length;
+          return '<tr><td><input value="'+esc(c.name)+'" onchange="DB.cats['+i+'].name=this.value;save();render()" ' +
+            'style="width:150px;padding:5px;border:1px solid var(--line);border-radius:7px"></td>' +
+            '<td><input type="color" value="'+c.color+'" onchange="DB.cats['+i+'].color=this.value;save();render()" ' +
+            'style="width:44px;height:30px;border:none;background:none"></td>' +
+            '<td>'+n+'件（未完了 '+liveTodos().filter(t=>t.cat===c.id).length+'）</td>' +
+            '<td style="white-space:nowrap"><button class="btn sm" onclick="moveCat(\''+c.id+'\',-1)">▲</button> ' +
+            '<button class="btn sm" onclick="moveCat(\''+c.id+'\',1)">▼</button></td>' +
+            '<td><button class="btn sm dg" onclick="openCat(\''+c.id+'\')">編集・削除</button></td></tr>';
+        }).join('') + '</tbody></table>'
+        : '<div class="empty">カテゴリーがありません</div>') +
+    '</section>' +
+
+    '<section class="panel"><header><h2>ToDoテンプレート</h2><div class="sp"></div>' +
+      '<button class="btn sm" onclick="openTpl()">＋ 追加</button></header>' +
+      (DB.tpl.length ? '<div class="pad">' + DB.tpl.map(p =>
+        '<div class="todo"><div class="bd"><div class="ttl">'+esc(p.name)+' '+tcatTag(p.cat)+'</div>' +
+        '<div class="meta">'+p.items.map(i => '<span class="tag n">'+esc(i)+'</span>').join('')+'</div></div>' +
+        '<div class="acts"><button class="btn sm" onclick="openTpl(\''+p.id+'\')">編集</button></div></div>').join('') + '</div>'
+        : '<div class="empty">テンプレートがありません</div>') +
+    '</section>' +
+
+    '<section class="panel"><header><h2>データ</h2></header><div class="pad" style="display:flex;gap:10px;flex-wrap:wrap">' +
+      '<button class="btn" onclick="exportJSON()">バックアップを書き出す</button>' +
+      '<button class="btn" onclick="document.getElementById(\'imp\').click()">読み込む</button>' +
+      '<input type="file" id="imp" accept="application/json" style="display:none" onchange="importJSON(this)">' +
+      '<button class="btn dg" onclick="if(confirm(\'すべてのデータを初期状態に戻します。よろしいですか？\')){DB=seed();save();render();}">初期化</button>' +
+    '</div></section>';
+  renderTT();
+}
+let CALS = null;   // 取得したカレンダー一覧
+function calMapHtml(){
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">' +
+    activeStaff().map(s0 => {
+      const cur = (DB.cfg.cal||{})[s0.id] || '';
+      const sel = CALS
+        ? '<select onchange="setCal(\''+s0.id+'\',this.value)" style="flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px">' +
+            '<option value="">（連携しない）</option>' +
+            CALS.map(c => '<option value="'+esc(c.id)+'"'+(cur===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('') +
+            (cur && !CALS.some(c=>c.id===cur) ? '<option value="'+esc(cur)+'" selected>'+esc(cur)+'</option>' : '') +
+          '</select>'
+        : '<input value="'+esc(cur)+'" placeholder="カレンダーID（例：xxx@gmail.com）" onchange="setCal(\''+s0.id+'\',this.value.trim())" ' +
+          'style="flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px">';
+      return '<div style="display:flex;align-items:center;gap:8px">' + avatar(s0) +
+        '<span style="width:44px;font-size:12.5px">'+esc(s0.name)+'</span>' + sel + '</div>';
+    }).join('') + '</div>';
+}
+function setCal(staffId, calId){
+  DB.cfg.cal = DB.cfg.cal || {};
+  if(calId) DB.cfg.cal[staffId] = calId; else delete DB.cfg.cal[staffId];
+  save();
+  const el = document.getElementById('calmap'); if(el) el.innerHTML = calMapHtml();
+}
+function togMailTo(id){
+  const a = DB.cfg.mailTo = DB.cfg.mailTo || [];
+  const i = a.indexOf(id); if(i<0) a.push(id); else a.splice(i,1);
+  save(); render();
+}
+function markSeenQuiet(){ DB.cfg.seenAt = nowISO(); save(); render(); }
+function testMail(){
+  if(!Sync.ready()){ alert('先に同期の設定を行ってください'); return; }
+  const to = mailTargets(false);
+  if(!to.length){ alert('メールアドレスが登録されていません。担当者欄で登録してください。'); return; }
+  toast('送信中…');
+  Sync.call('notify', {to, subject:'【テスト】金剛住機 スケジュール',
+    body:'これはテストメールです。\n\n送信者：'+actorName()+'\n宛先：'+to.join(', ')})
+    .then(r => alert(r.ok ? (r.sent||0)+'件送信しました。受信箱をご確認ください。'+
+      (r.remaining!==undefined?'\n本日の残り送信可能数：'+r.remaining:'') : '失敗：'+(r.error||'')))
+    .catch(e => alert('送信に失敗しました：'+e.message+'\n\nコード.gs を貼り直して再デプロイし、メール送信の許可を与えたかご確認ください。'));
+}
+function loadCals(){
+  if(!Sync.ready()){ alert('先に同期の設定（Apps ScriptのURLと合言葉）を行ってください'); return; }
+  toast('カレンダー一覧を取得中…');
+  Sync.listCalendars().then(list => {
+    CALS = list;
+    const el = document.getElementById('calmap'); if(el) el.innerHTML = calMapHtml();
+    toast(list.length + '件のカレンダーが見つかりました');
+  }).catch(e => alert('取得に失敗しました：' + e.message +
+    '\n\nApps Script を貼り直して「新バージョン」で再デプロイし、カレンダーへのアクセス許可を与えたかご確認ください。'));
+}
+function pullCal(){
+  if(!Sync.ready()){ alert('先に同期の設定を行ってください'); return; }
+  toast('カレンダーを取り込み中…');
+  Sync.calPull().then(() => { render(); toast((DB.gcal||[]).length + '件の予定を取り込みました'); })
+    .catch(e => alert('取り込みに失敗しました：' + e.message));
+}
+function renderTT(){
+  const el = document.getElementById('tt'); if(!el) return;
+  el.innerHTML = '<div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px">' +
+    DB.cfg.travel.map((r,i) =>
+      '<div style="display:flex;gap:5px;align-items:center">' +
+      '<input value="'+esc(r.kw)+'" onchange="DB.cfg.travel['+i+'].kw=this.value;save()" style="flex:1;min-width:0;padding:5px 7px;border:1px solid var(--line);border-radius:7px">' +
+      '<input type="number" min="0" value="'+r.m+'" onchange="DB.cfg.travel['+i+'].m=+this.value||0;save()" style="width:60px;padding:5px;border:1px solid var(--line);border-radius:7px">' +
+      '<button class="btn sm dg" onclick="DB.cfg.travel.splice('+i+',1);save();renderTT()">×</button></div>').join('') + '</div>';
+}
+function addTT(){ DB.cfg.travel.push({kw:'', m:20}); save(); renderTT(); }
+function addStaff(){ DB.staff.push({id:uid('s'), name:'新規', full:'', role:'', color:'#6b7280', active:true}); save(); render(); }
+function delStaff(id){
+  if(!confirm('この担当者を削除します。予定・ToDoからも外れます。')) return;
+  DB.staff = DB.staff.filter(s => s.id !== id);
+  DB.sch.forEach(e => e.who = e.who.filter(w => w !== id));
+  DB.todos.forEach(t => t.who = (t.who||[]).filter(w => w !== id));
+  if(S.me === id){ S.me = (activeStaff()[0]||{}).id||''; DB.cfg.me = S.me; }
+  save(); render();
+}
+function exportJSON(){
+  const b = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = 'kongo-schedule-' + today() + '.json'; a.click();
+}
+function importJSON(inp){
+  const f = inp.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { try{ DB = JSON.parse(r.result); save(); DB = load(); render(); toast('読み込みました'); }
+    catch(e){ alert('ファイルを読み込めませんでした'); } };
+  r.readAsText(f);
+}
+/* ============================================================
+   モーダル共通
+   ============================================================ */
+let M = null;   // 編集中の一時オブジェクト
+function closeM(){ M = null; document.getElementById('modal').innerHTML = ''; }
+function shell(title, inner, foot, wide){
+  document.getElementById('modal').innerHTML =
+    '<div class="ov" onclick="if(event.target===this)closeM()"><div class="modal'+(wide?' wide':'')+'">' +
+      '<header><h3>'+esc(title)+'</h3><button class="x" onclick="closeM()">×</button></header>' +
+      '<div class="content">'+inner+'</div><footer>'+foot+'</footer></div></div>';
+}
+/* 担当者の複数選択（予定・ToDo・日報で共用） */
+function whoPicker(sel, cb){
+  return '<div class="pick">' + activeStaff().map(s =>
+    '<button type="button" class="'+(sel.includes(s.id)?'on':'')+'" onclick="'+cb+'(\''+s.id+'\')">' +
+    avatar(s) + esc(s.name) + '</button>').join('') +
+    '<button type="button" class="'+(sel.length===activeStaff().length?'on':'')+'" ' +
+    'onclick="'+cb+'(\'__all\')" style="padding:5px 13px">全員</button></div>';
+}
+function togWho(list, id){
+  if(id === '__all'){
+    const all = activeStaff().map(s=>s.id);
+    return list.length === all.length ? [] : all;
+  }
+  return list.includes(id) ? list.filter(x=>x!==id) : list.concat([id]);
+}
+
+/* ============================================================
+   受付・案件モーダル
+   ============================================================ */
+function openJob(id){
+  const j = id ? JSON.parse(JSON.stringify(jobById(id))) : {id:'', code:'R-'+String(1000+DB.jobs.length+1).slice(1),
+    customer:'', address:'山口県下関市', phone:'', cat:'修理', title:'', detail:'', prio:'中', status:'受付',
+    owner: isMe()?S.me:'', est:0, order:0, inv:0, invNo:'', invDate:'', due:'', pays:[], notes:[],
+    stageAt:{}, created:today()};
+  M = j; M._tab = 'info'; drawJob();
+}
+function drawJob(){
+  const bal = balOf(M), paid = paidOf(M);
+  const tab = M._tab || 'info';
+  const tabs = [['info','案件情報'],['money','見積・請求・入金'],['note','会議メモ・履歴']];
+  shell(M.id ? esc(M.customer) + '　' + esc(M.title) : '受付を登録',
+    '<div class="modesw" style="margin:0">' + tabs.map(t =>
+      '<button class="'+(tab===t[0]?'on':'')+'" onclick="M._tab=\''+t[0]+'\';drawJob()">'+t[1]+'</button>').join('') + '</div>' +
+    (tab==='info' ? jobTabInfo() : tab==='money' ? jobTabMoney(paid, bal) : jobTabNote()),
+    (M.id ? '<button class="btn dg" onclick="delJob()">削除</button>' : '') +
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveJob()">保存</button>', true);
+}
+function jobTabInfo(){
+  return '<div class="grid2">' +
+      f('受付№','<input value="'+esc(M.code)+'" oninput="M.code=this.value">') +
+      f('区分','<select onchange="M.cat=this.value">'+Object.keys(CATS).map(c=>'<option'+(M.cat===c?' selected':'')+'>'+c+'</option>').join('')+'</select>') +
+    '</div>' +
+    f('顧客・現場名','<input value="'+esc(M.customer)+'" oninput="M.customer=this.value" placeholder="例）○○マンション 203号室">') +
+    f('住所','<input value="'+esc(M.address)+'" oninput="M.address=this.value" placeholder="山口県下関市...">') +
+    '<div class="grid2">' +
+      f('電話番号','<input value="'+esc(M.phone)+'" oninput="M.phone=this.value">') +
+      f('優先度','<select onchange="M.prio=this.value">'+Object.keys(PRIOS).map(p=>'<option'+(M.prio===p?' selected':'')+'>'+p+'</option>').join('')+'</select>') +
+    '</div>' +
+    f('件名','<input value="'+esc(M.title)+'" oninput="M.title=this.value" placeholder="例）給湯器の点火不良">') +
+    f('内容メモ','<textarea oninput="M.detail=this.value">'+esc(M.detail)+'</textarea>') +
+    '<div class="sec"><h4>案件責任者（最後まで見届ける人）</h4>' +
+      '<div class="pick">' + activeStaff().map(s =>
+        '<button type="button" class="'+(M.owner===s.id?'on':'')+'" onclick="M.owner=\''+s.id+'\';drawJob()">' +
+        avatar(s)+esc(s.name)+'</button>').join('') +
+        '<button type="button" class="'+(!M.owner?'on':'')+'" onclick="M.owner=\'\';drawJob()" style="padding:5px 13px">未定</button>' +
+      '</div></div>' +
+    '<div class="sec"><h4>工程<span class="sp"></span>' +
+      (M.id ? '<span class="hintline">現在の工程になって '+stageSince(M)+'日（目安 '+slaOf(M.status)+'日）</span>' : '') + '</h4>' +
+      '<div class="pick plain">' + STAGE_KEYS.map(k =>
+        '<button type="button" class="'+(M.status===k?'on':'')+'" onclick="jobStage(\''+k+'\')" ' +
+        'style="'+(M.status===k?'border-color:'+STAGE_COLOR[k]+';background:'+STAGE_COLOR[k]+';color:#fff':'')+'">'+k+'</button>').join('') +
+      '</div></div>';
+}
+function jobStage(k){
+  if(M.status !== k){ M.stageAt = M.stageAt||{}; M.stageAt[k] = nowISO(); M._stageFrom = M._stageFrom || M.status; }
+  M.status = k; drawJob();
+}
+function jobTabMoney(paid, bal){
+  return '<div class="grid3">' +
+      f('見積金額','<input type="number" min="0" value="'+(M.est||0)+'" onchange="M.est=+this.value||0;drawJob()">') +
+      f('受注金額','<input type="number" min="0" value="'+(M.order||0)+'" onchange="M.order=+this.value||0;drawJob()">') +
+      f('請求金額','<input type="number" min="0" value="'+(M.inv||0)+'" onchange="M.inv=+this.value||0;drawJob()">') +
+    '</div>' +
+    '<div class="grid3">' +
+      f('請求書番号','<input value="'+esc(M.invNo)+'" oninput="M.invNo=this.value" placeholder="例）2026-0831-004">') +
+      f('請求日','<input type="date" value="'+(M.invDate||'')+'" onchange="M.invDate=this.value;if(!M.due&&this.value)M.due=addD(this.value,30);drawJob()">') +
+      f('入金期日','<input type="date" value="'+(M.due||'')+'" onchange="M.due=this.value">') +
+    '</div>' +
+    '<div class="sec"><h4>入金の記録<span class="sp"></span>' +
+      '<button class="btn sm pri" onclick="openPay()">＋ 入金を登録</button></h4>' +
+      ((M.pays||[]).length ? '<table><thead><tr><th>入金日</th><th>方法</th><th style="text-align:right">金額</th>' +
+        '<th>領収書№</th><th>集金者</th><th>納金</th><th></th></tr></thead><tbody>' +
+        M.pays.map((p,i) => '<tr><td>'+esc(p.date)+'</td>' +
+          '<td><span class="tag '+(p.method==='現金'?'r':'b')+'">'+esc(p.method)+'</span></td>' +
+          '<td style="text-align:right" class="mono">'+money(p.amount)+'</td>' +
+          '<td>'+esc(p.receiptNo||'—')+'</td>' +
+          '<td>'+(p.collector?esc((staffById(p.collector)||{}).name):'—')+'</td>' +
+          '<td>'+(p.method!=='現金'?'—':(p.depositId?'<span class="tag g">納金済</span>':'<span class="tag r">未納金</span>'))+'</td>' +
+          '<td><button class="btn sm dg" onclick="delPay('+i+')">削除</button></td></tr>').join('') +
+        '</tbody></table>' : '<div class="hintline">入金の記録はまだありません</div>') +
+      '<div class="hintline" style="display:flex;gap:16px;flex-wrap:wrap">' +
+        '<span>請求 <b class="mono">'+money(M.inv)+'</b></span>' +
+        '<span>入金 <b class="mono">'+money(paid)+'</b></span>' +
+        '<span>残高 <b class="mono" style="color:'+(bal>0?'var(--danger)':'var(--ok)')+'">'+money(bal)+'</b></span>' +
+      '</div>' +
+      (M.inv>0 && bal<=0 && M.status!=='完了' ? '<button class="btn sm" onclick="jobStage(\'完了\')">入金が揃いました。工程を「完了」にする</button>' : '') +
+    '</div>';
+}
+function jobTabNote(){
+  const logs = (DB.log||[]).filter(l => l.targetId === M.id).slice(-40).reverse();
+  return '<div class="sec"><h4>会議メモ・申し送り（付箋の代わり）</h4>' +
+      '<div style="display:flex;gap:8px"><input id="jnote" placeholder="例）8/20 施主へ請求書再送。月末までに入金予定" style="flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px">' +
+      '<button class="btn pri" onclick="addNote()">追加</button></div>' +
+      ((M.notes||[]).length ? '<div style="display:flex;flex-direction:column;gap:6px">' +
+        M.notes.slice().reverse().map(n => '<div style="border-left:3px solid var(--accent);padding:6px 10px;background:var(--line-2);border-radius:8px">' +
+        '<div style="font-size:12.5px">'+esc(n.text)+'</div>' +
+        '<div class="hintline">'+esc(dayOf(n.at))+'　'+esc(n.byName||'')+'</div></div>').join('') + '</div>'
+        : '<div class="hintline">メモはまだありません</div>') +
+    '</div>' +
+    '<div class="sec"><h4>変更履歴</h4>' +
+      (logs.length ? '<table><thead><tr><th>日時</th><th>操作者</th><th>項目</th><th>変更</th></tr></thead><tbody>' +
+        logs.map(l => '<tr><td style="font-size:11.5px">'+esc(dayOf(l.at))+' '+esc((l.at||'').slice(11,16))+'</td>' +
+        '<td>'+esc(l.byName||'')+'</td><td>'+esc(l.field)+'</td>' +
+        '<td style="font-size:11.5px">'+esc(l.from)+' → <b>'+esc(l.to)+'</b></td></tr>').join('') + '</tbody></table>'
+        : '<div class="hintline">履歴はまだありません</div>') +
+    '</div>';
+}
+function addNote(){
+  const el = document.getElementById('jnote'); if(!el || !el.value.trim()) return;
+  M.notes = M.notes || [];
+  M.notes.push({at: nowISO(), by: actor(), byName: actorName(), text: el.value.trim()});
+  el.value = ''; drawJob();
+}
+function f(label, inner){ return '<div class="f"><label>'+label+'</label>'+inner+'</div>'; }
+function saveJob(){
+  if(!M.customer.trim()){ alert('顧客・現場名を入力してください'); return; }
+  if(!M.title.trim()) M.title = M.cat;
+  const label = M.customer + ' ' + M.title;
+  const tabTmp = M._tab, from = M._stageFrom; delete M._tab; delete M._stageFrom;
+  if(M.id){
+    const old = jobById(M.id);
+    [['status','工程'],['inv','請求金額'],['est','見積金額'],['order','受注金額'],
+     ['invNo','請求書番号'],['invDate','請求日'],['due','入金期日'],['owner','責任者']].forEach(x => {
+      if(String(old[x[0]]||'') !== String(M[x[0]]||'')) logIt('案件', M.id, label, x[1], old[x[0]], M[x[0]]);
+    });
+    Object.assign(old, M);
+  }else{
+    M.id = uid('j'); M.stageAt = M.stageAt||{}; if(!M.stageAt[M.status]) M.stageAt[M.status] = nowISO();
+    DB.jobs.push(M); logIt('案件', M.id, label, '新規受付', '', M.status);
+    sendMail('【新規受付】' + M.customer + '　' + M.title,
+      ['新しい受付が登録されました。', '',
+       '顧客・現場：' + M.customer, '件名：' + M.title, '区分：' + M.cat, '優先度：' + M.prio,
+       '住所：' + (M.address||'—'), '電話：' + (M.phone||'—'),
+       '内容：' + (M.detail||'—'),
+       '責任者：' + (M.owner ? (staffById(M.owner)||{}).name : '未定'),
+       '', '登録者：' + actorName(), '受付№：' + M.code].join('\n'));
+  }
+  save(); closeM(); render(); toast('保存しました');
+}
+/* ---------- 入金の登録（案件モーダル内） ---------- */
+let JOB_BACK = null, P = null;
+function openPay(){
+  JOB_BACK = M;
+  const bal = balOf(M);
+  P = {date: today(), amount: bal > 0 ? bal : 0, method:'振込', receiptNo:'', collector: actor()||'', note:''};
+  drawPay();
+}
+function drawPay(){
+  const cash = P.method === '現金';
+  shell('入金の登録　—　' + esc(JOB_BACK.customer),
+    '<div class="grid2">' +
+      f('入金日','<input type="date" value="'+P.date+'" onchange="P.date=this.value">') +
+      f('金額','<input type="number" min="0" value="'+P.amount+'" onchange="P.amount=+this.value||0">') +
+    '</div>' +
+    f('入金方法','<div class="pick plain">' + PAY_METHODS.map(m =>
+      '<button type="button" class="'+(P.method===m?'on':'')+'" onclick="P.method=\''+m+'\';drawPay()">'+m+'</button>').join('') + '</div>') +
+    (cash ? '<div class="sec" style="border-color:var(--danger)"><h4 style="color:var(--danger)">現金の場合は必ず記入してください</h4>' +
+      '<div class="grid2">' +
+        f('領収書番号（連番）','<input value="'+esc(P.receiptNo)+'" oninput="P.receiptNo=this.value" placeholder="例）No.001234">') +
+        f('集金した人','<select onchange="P.collector=this.value"><option value="">選択してください</option>' +
+          activeStaff().map(s=>'<option value="'+s.id+'"'+(P.collector===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') + '</select>') +
+      '</div>' +
+      '<div class="hintline">登録すると、その人の「現金預り残高」に加算されます。会社へ納めたら売掛会議の画面で納金を登録してください。</div></div>'
+      : '') +
+    f('備考','<input value="'+esc(P.note)+'" oninput="P.note=this.value">') +
+    '<div class="hintline">操作者：<b>'+esc(actorName())+'</b>（記録に残ります）</div>',
+    '<div class="sp"></div><button class="btn" onclick="M=JOB_BACK;JOB_BACK=null;drawJob()">キャンセル</button>' +
+    '<button class="btn pri" onclick="savePay()">登録する</button>');
+}
+function savePay(){
+  if(!(P.amount > 0)){ alert('金額を入力してください'); return; }
+  if(P.method === '現金'){
+    if(!P.receiptNo.trim()){ alert('現金の場合は領収書番号が必要です'); return; }
+    if(!P.collector){ alert('集金した人を選んでください'); return; }
+  }
+  M = JOB_BACK; JOB_BACK = null;
+  M.pays = M.pays || [];
+  M.pays.push(Object.assign({id:uid('pay'), depositId:'', by:actor(), byName:actorName(), at:nowISO()}, P));
+  logIt('入金', M.id, M.customer+' '+M.title, '入金登録（'+P.method+'）', '', money(P.amount) + (P.receiptNo?' / 領収書'+P.receiptNo:''));
+  P = null; drawJob();
+}
+function delPay(i){
+  const p = M.pays[i];
+  if(p.depositId){ alert('納金済みの入金は削除できません。売掛会議画面で納金を取り消してください。'); return; }
+  if(!confirm('この入金記録を削除します。履歴には残ります。')) return;
+  M.pays.splice(i,1);
+  logIt('入金', M.id, M.customer, '入金取消（'+p.method+'）', money(p.amount), '削除');
+  drawJob();
+}
+
+function delJob(){
+  if(!confirm('この案件を削除します。関連する予定・ToDoの紐付けも外れます。')) return;
+  logIt('案件', M.id, M.customer+' '+M.title, '案件削除', M.status, '削除');
+  DB.jobs = DB.jobs.filter(j => j.id !== M.id);
+  DB.sch.forEach(e => { if(e.jobId===M.id) e.jobId = ''; });
+  DB.todos.forEach(t => { if(t.jobId===M.id){ t.jobId=''; t.scope='shared'; } });
+  save(); closeM(); render();
+}
+
+/* ============================================================
+   予定モーダル（担当者：複数選択／移動時間）
+   ============================================================ */
+function openSch(id, jobId, date, staffId, pre){
+  if(id){ M = Object.assign({}, DB.sch.find(e => e.id === id)); M.who = M.who.slice(); }
+  else{
+    const j = jobId ? jobById(jobId) : null;
+    M = {id:'', jobId: jobId||'', title: (pre&&pre.title) || (j ? j.customer+' '+j.title : ''),
+      date: date || S.date, start:'09:00', end:'10:00', allDay:false, endDate:'', guests:'', gid:'', gcalId:'',
+      who: (pre&&pre.who) || (staffId ? [staffId] : (isMe() ? [S.me] : [])),
+      cat: j ? j.cat : '修理', tent:false,
+      address: (pre&&pre.address) || (j ? j.address : ''),
+      out:0, back:0, note:(pre&&pre.note)||'', fromTodo:(pre&&pre.fromTodo)||''};
+    if(M.address) setTimeout(()=>calcNow(true), 60);
+  }
+  M._travelMsg = '';
+  drawSch();
+}
+function drawSch(){
+  const tot = (toMin(M.end)-toMin(M.start));
+  const occ = tot + (M.out|0) + (M.back|0);
+  shell(M.id ? '予定の編集' : (M.gid ? 'Googleカレンダーから取り込む' : '予定を追加'),
+    (M.gid ? '<div class="hintline" style="background:var(--line-2);padding:8px 11px;border-radius:9px">' +
+      '📅 Googleカレンダーの予定から作成しています。件名・日時・場所・メモは引き継ぎ済みです。</div>' : '') +
+    f('件名','<input value="'+esc(M.title)+'" oninput="M.title=this.value" placeholder="例）○○様邸 給湯器修理">') +
+    '<div class="grid2">' +
+      f('関連する案件','<select onchange="M.jobId=this.value;syncJob()"><option value="">（なし）</option>' +
+        DB.jobs.map(j=>'<option value="'+j.id+'"'+(M.jobId===j.id?' selected':'')+'>'+esc(j.code+' '+j.customer)+'</option>').join('')+'</select>') +
+      f('区分','<select onchange="M.cat=this.value;drawSch()">'+Object.keys(CATS).map(c=>'<option'+(M.cat===c?' selected':'')+'>'+c+'</option>').join('')+'</select>') +
+    '</div>' +
+    '<div class="sec"><h4>担当者（複数選択できます）<span class="sp"></span>' +
+      '<span class="hintline">'+(M.who.length?esc(whoNames(M.who))+'（'+M.who.length+'名）':'未割当')+'</span></h4>' +
+      whoPicker(M.who, 'schWho') + '</div>' +
+    '<label style="display:flex;align-items:center;gap:8px;font-size:13px">' +
+      '<input type="checkbox" '+(M.allDay?'checked':'')+' onchange="M.allDay=this.checked;if(M.allDay&&!M.endDate)M.endDate=M.date;drawSch()" style="width:16px;height:16px"> 終日の予定にする</label>' +
+    (M.allDay
+      ? '<div class="grid2">' +
+          f('開始日','<input type="date" value="'+M.date+'" onchange="M.date=this.value;if((M.endDate||\'\')<this.value)M.endDate=this.value;drawSch()">') +
+          f('終了日','<input type="date" value="'+(M.endDate||M.date)+'" onchange="M.endDate=this.value;drawSch()">') +
+        '</div>'
+      : '<div class="grid3">' +
+      f('日付','<input type="date" value="'+M.date+'" onchange="M.date=this.value;drawSch()">') +
+      f('開始','<input type="time" value="'+M.start+'" onchange="setStart(this.value)">') +
+      f('終了','<input type="time" value="'+M.end+'" onchange="setEnd(this.value)">') +
+    '</div>' +
+    f('所要時間　<b style="color:var(--tx)">'+durLabel(durMin())+'</b>',
+      '<div class="pick plain" style="gap:6px">' +
+        [30,60,90,120,180,240,480].map(m =>
+          '<button type="button" class="'+(durMin()===m?'on':'')+'" onclick="setDur('+m+')">'+durLabel(m)+'</button>').join('') +
+        '<button type="button" onclick="bumpEnd(-15)">−15分</button>' +
+        '<button type="button" onclick="bumpEnd(15)">＋15分</button>' +
+      '</div>')) +
+    '<div class="sec"><h4>'+(M.allDay?'現場の住所':'移動時間')+'<span class="sp"></span>' +
+      (M.allDay?'':'<button class="btn sm pri" onclick="calcNow()">この住所で計算</button>')+'</h4>' +
+      f('現場の住所','<input id="ad" value="'+esc(M.address)+'" oninput="M.address=this.value">') +
+      (M.allDay ? '' : '<div class="grid2">' +
+        f('往路（分）','<input type="number" min="0" value="'+(M.out|0)+'" onchange="M.out=+this.value||0;drawSch()">') +
+        f('復路（分）','<input type="number" min="0" value="'+(M.back|0)+'" onchange="M.back=+this.value||0;drawSch()">') +
+      '</div>' +
+      '<div class="hintline" id="tmsg">'+(M._travelMsg||'出発地：'+esc(DB.cfg.origin))+'</div>' +
+      '<div class="hintline"><b>拘束時間 '+Math.floor(occ/60)+'時間'+(occ%60)+'分</b>　' +
+        toHM(toMin(M.start)-(M.out|0))+' 出発 → '+M.start+' 作業開始 → '+M.end+' 作業終了 → '+toHM(toMin(M.end)+(M.back|0))+' 帰社</div>') +
+    '</div>' +
+    f('参加者・同行者（社外を含む）','<input value="'+esc(M.guests||'')+'" oninput="M.guests=this.value" placeholder="例）元請け 山田様、メーカー担当">') +
+    f('メモ','<textarea style="min-height:88px" oninput="M.note=this.value">'+esc(M.note)+'</textarea>') +
+    (M.gid ? '<div class="hintline">取り込み元：Googleカレンダー（'+esc(M.gcalId||'')+'）</div>' : '') +
+    '<label style="display:flex;align-items:center;gap:8px;font-size:13px">' +
+      '<input type="checkbox" '+(M.tent?'checked':'')+' onchange="M.tent=this.checked;drawSch()" style="width:16px;height:16px"> 仮予定にする（重複チェックの対象外）</label>',
+    (M.id ? '<button class="btn dg" onclick="delSch()">削除</button>' : '') +
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveSch()">保存</button>');
+}
+const durMin = () => Math.max(0, toMin(M.end) - toMin(M.start));
+function durLabel(m){
+  if(m % 60 === 0) return (m/60) + '時間';
+  if(m < 60) return m + '分';
+  return Math.floor(m/60) + '時間' + (m%60) + '分';
+}
+/* 開始を変えると、所要時間はそのままで終了もずれる（新規は1時間が既定） */
+function setStart(v){
+  if(!v) return;
+  const d = durMin() || 60;
+  M.start = v;
+  M.end = toHM(clamp(toMin(v) + d, 0, 1439));
+  if(toMin(M.end) <= toMin(M.start)) M.end = toHM(clamp(toMin(v) + 60, 0, 1439));
+  drawSch();
+}
+function setEnd(v){
+  if(!v) return;
+  M.end = v;
+  if(toMin(M.end) <= toMin(M.start)) M.end = toHM(clamp(toMin(M.start) + 60, 0, 1439));
+  drawSch();
+}
+function setDur(m){ M.end = toHM(clamp(toMin(M.start) + m, 0, 1439)); drawSch(); }
+function bumpEnd(m){ setEnd(toHM(clamp(toMin(M.end) + m, 0, 1439))); }
+
+function schWho(id){ M.who = togWho(M.who, id); drawSch(); }
+function syncJob(){
+  const j = M.jobId ? jobById(M.jobId) : null;
+  if(j){ M.address = j.address; M.cat = j.cat; if(!M.title.trim()) M.title = j.customer+' '+j.title; }
+  drawSch(); if(j && j.address) calcNow(true);
+}
+function calcNow(silent){
+  if(!M) return;
+  const el = document.getElementById('ad'); if(el) M.address = el.value;
+  const msg = document.getElementById('tmsg');
+  if(!(M.address||'').trim()){ if(!silent) alert('住所を入力してください'); return; }
+  const tok = M._tok = uid('k');
+  if(msg) msg.innerHTML = '計算中…';
+  calcTravel(M.address).then(r => {
+    if(!M || M._tok !== tok) return;
+    M.out = r.min; M.back = r.min;
+    M._travelMsg = '片道 <b>'+r.min+'分</b>' + (r.km ? '（'+r.km+'km）' : '') + ' ／ 取得元：' + r.src +
+      (r.warn ? '<br><span style="color:var(--danger)">Google取得失敗：'+esc(r.warn)+'</span>' : '');
+    drawSch();
+  }).catch(e => {
+    if(!M || M._tok !== tok) return;
+    M._travelMsg = '<span style="color:var(--danger)">計算できませんでした：'+esc(e.message)+'</span>' +
+      '<br>手入力するか、設定でAPIキー／目安表をご確認ください。';
+    if(!M.out && !M.back){ M.out = DB.cfg.defBuffer; M.back = DB.cfg.defBuffer; }
+    drawSch();
+  });
+}
+function saveSch(){
+  if(!M.title.trim()){ alert('件名を入力してください'); return; }
+  if(!M.who.length && !confirm('担当者が未割当です。このまま保存しますか？')) return;
+  if(M.allDay){ if(!M.endDate || M.endDate < M.date) M.endDate = M.date; }
+  else if(toMin(M.end) <= toMin(M.start)){ alert('終了時刻は開始より後にしてください'); return; }
+  const ft = M.fromTodo, isNew = !M.id; delete M._travelMsg; delete M.fromTodo; delete M._tok; delete M._from;
+  if(M.id){ Object.assign(DB.sch.find(e=>e.id===M.id), M); }
+  else { M.id = uid('e'); DB.sch.push(M); }
+  if(ft){ const t = DB.todos.find(x=>x.id===ft); if(t) t.schId = M.id; }
+  if(isNew && M.who.length){
+    sendMail('【予定】' + fmtD(M.date) + ' ' + M.start + '　' + M.title,
+      ['予定が割り当てられました。', '',
+       '日時：' + fmtD(M.date) + ' ' + M.start + '–' + M.end,
+       '件名：' + M.title, '区分：' + M.cat,
+       '担当：' + whoNames(M.who),
+       '住所：' + (M.address||'—'),
+       ((M.out|0)||(M.back|0) ? '移動：往路' + (M.out|0) + '分／復路' + (M.back|0) + '分（' + toHM(toMin(M.start)-(M.out|0)) + ' 出発）' : ''),
+       'メモ：' + (M.note||'—'), '', '登録者：' + actorName()].filter(Boolean).join('\n'), M.who);
+  }
+  save(); closeM(); render(); toast('予定を保存しました');
+}
+function delSch(){
+  if(!confirm('この予定を削除しますか？')) return;
+  DB.sch = DB.sch.filter(e => e.id !== M.id); save(); closeM(); render();
+}
+
+/* ============================================================
+   ToDoモーダル（担当者：複数選択）
+   ============================================================ */
+function openTodo(id, jobId){
+  if(id){ M = Object.assign({}, DB.todos.find(t=>t.id===id)); M.who = (M.who||[]).slice(); M.subs = (M.subs||[]).map(s=>Object.assign({},s)); }
+  else M = {id:'', title:'', scope: jobId?'job':'shared', jobId: jobId||'', who: isMe()?[S.me]:[], due: today(),
+            prio:'中', done:false, cat: (S.todoF.cat!=='all'&&S.todoF.cat!=='none') ? S.todoF.cat : '',
+            memo:'', subs:[], created: today()};
+  drawTodo();
+}
+function drawTodo(){
+  shell(M.id ? 'ToDoの編集' : 'ToDoを追加',
+    f('やること','<input value="'+esc(M.title)+'" oninput="M.title=this.value" placeholder="例）○○様邸 見積書の作成">') +
+    f('カテゴリー','<div class="pick plain">' +
+      DB.cats.map(c => '<button type="button" class="'+(M.cat===c.id?'on':'')+'" onclick="M.cat=\''+c.id+'\';drawTodo()" ' +
+        'style="'+(M.cat===c.id?'border-color:'+c.color+';background:'+c.color+';color:#fff':'')+'">' +
+        '<i style="width:9px;height:9px;border-radius:50%;background:'+(M.cat===c.id?'#fff':c.color)+';display:inline-block;margin-right:6px"></i>' +
+        esc(c.name)+'</button>').join('') +
+      '<button type="button" class="'+(!M.cat?'on':'')+'" onclick="M.cat=\'\';drawTodo()">未分類</button>' +
+      '<button type="button" onclick="openCat(null,true)">＋ 新規</button></div>') +
+    '<div class="grid2">' +
+      f('種類','<div class="pick plain">'+Object.keys(SCOPES).map(k=>
+        '<button type="button" class="'+(M.scope===k?'on':'')+'" onclick="M.scope=\''+k+'\';drawTodo()">'+SCOPES[k]+'</button>').join('')+'</div>') +
+      f('関連する案件','<select onchange="M.jobId=this.value;if(this.value)M.scope=\'job\';drawTodo()">' +
+        '<option value="">（なし）</option>' + DB.jobs.map(j=>'<option value="'+j.id+'"'+(M.jobId===j.id?' selected':'')+'>'+esc(j.code+' '+j.customer)+'</option>').join('')+'</select>') +
+    '</div>' +
+    '<div class="sec"><h4>担当者（複数選択できます）<span class="sp"></span>' +
+      '<span class="hintline">'+(M.who.length?esc(whoNames(M.who))+'（'+M.who.length+'名）':'未割当')+'</span></h4>' +
+      whoPicker(M.who, 'todoWho') + '</div>' +
+    '<div class="grid2">' +
+      f('期限','<input type="date" value="'+(M.due||'')+'" onchange="M.due=this.value">') +
+      f('優先度','<div class="pick plain">'+Object.keys(PRIOS).map(p=>
+        '<button type="button" class="'+(M.prio===p?'on':'')+'" onclick="M.prio=\''+p+'\';drawTodo()">'+p+'</button>').join('')+'</div>') +
+    '</div>' +
+    f('メモ','<textarea oninput="M.memo=this.value">'+esc(M.memo)+'</textarea>') +
+    '<div class="sec"><h4>チェックリスト<span class="sp"></span>' +
+      '<select onchange="applyTpl(this.value);this.value=\'\'" style="padding:5px 9px;border:1px solid var(--line);border-radius:8px">' +
+      '<option value="">テンプレートを追加…</option>' + DB.tpl.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('') + '</select></h4>' +
+      (M.subs.length ? M.subs.map((s,i) =>
+        '<div style="display:flex;gap:6px;align-items:center">' +
+        '<input value="'+esc(s.t)+'" oninput="M.subs['+i+'].t=this.value" style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px">' +
+        '<button class="btn sm dg" onclick="M.subs.splice('+i+',1);drawTodo()">×</button></div>').join('') : '<div class="hintline">項目がありません</div>') +
+      '<button class="btn sm" onclick="M.subs.push({t:\'\',d:false});drawTodo()">＋ 項目を追加</button></div>',
+    (M.id ? '<button class="btn dg" onclick="delTodo()">削除</button>' : '') +
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveTodo()">保存</button>');
+}
+function todoWho(id){ M.who = togWho(M.who, id); drawTodo(); }
+function applyTpl(id){
+  const p = DB.tpl.find(x=>x.id===id); if(!p) return;
+  p.items.forEach(i => M.subs.push({t:i, d:false}));
+  if(!M.title.trim()) M.title = p.name;
+  drawTodo();
+}
+function saveTodo(){
+  if(!M.title.trim()){ alert('やることを入力してください'); return; }
+  M.subs = M.subs.filter(s => s.t.trim());
+  if(M.id) Object.assign(DB.todos.find(t=>t.id===M.id), M);
+  else { M.id = uid('t'); DB.todos.push(M); }
+  save(); closeM(); render(); toast('ToDoを保存しました');
+}
+function delTodo(){
+  const t = DB.todos.find(x => x.id === M.id); if(!t) return;
+  t.del = true; t.delAt = nowISO(); save(); closeM(); render();
+  toast('ゴミ箱に移しました（'+keepDays()+'日間は復元できます）', ()=>{ t.del = false; t.delAt = ''; });
+}
+/* テンプレートから一括でToDoを作る */
+function openTplPick(){
+  M = {tplId: DB.tpl[0] ? DB.tpl[0].id : '', jobId:'', who:[], due: today(), mode:'each',
+       cat: (S.todoF.cat!=='all'&&S.todoF.cat!=='none') ? S.todoF.cat : (DB.tpl[0]&&DB.tpl[0].cat) || ''};
+  drawTplPick();
+}
+function drawTplPick(){
+  shell('テンプレートからToDoを追加',
+    f('テンプレート','<select onchange="M.tplId=this.value;drawTplPick()">' +
+      DB.tpl.map(p=>'<option value="'+p.id+'"'+(M.tplId===p.id?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select>') +
+    f('関連する案件','<select onchange="M.jobId=this.value"><option value="">（なし）</option>' +
+      DB.jobs.map(j=>'<option value="'+j.id+'"'+(M.jobId===j.id?' selected':'')+'>'+esc(j.code+' '+j.customer)+'</option>').join('')+'</select>') +
+    f('カテゴリー','<select onchange="M.cat=this.value">' +
+      '<option value="">未分類</option>' +
+      DB.cats.map(c=>'<option value="'+c.id+'"'+(M.cat===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>') +
+    '<div class="sec"><h4>担当者（複数選択できます）</h4>' + whoPicker(M.who, 'tplWho') + '</div>' +
+    '<div class="grid2">' + f('期限','<input type="date" value="'+M.due+'" onchange="M.due=this.value">') +
+      f('追加のしかた','<select onchange="M.mode=this.value">' +
+        '<option value="each"'+(M.mode==='each'?' selected':'')+'>項目ごとに1件ずつ</option>' +
+        '<option value="one"'+(M.mode==='one'?' selected':'')+'>1件のToDo＋チェックリスト</option></select>') + '</div>' +
+    '<div class="hintline">'+ (DB.tpl.find(p=>p.id===M.tplId)||{items:[]}).items.map(i=>'・'+esc(i)).join('<br>') +'</div>',
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="runTpl()">追加する</button>');
+}
+function tplWho(id){ M.who = togWho(M.who, id); drawTplPick(); }
+function runTpl(){
+  const p = DB.tpl.find(x=>x.id===M.tplId); if(!p) return;
+  const base = {scope: M.jobId?'job':'shared', jobId:M.jobId, who:M.who.slice(), due:M.due,
+                prio:'中', done:false, cat: M.cat||p.cat||'', memo:'', created:today()};
+  if(M.mode === 'one'){
+    DB.todos.push(Object.assign({id:uid('t'), title:p.name, subs:p.items.map(i=>({t:i,d:false}))}, base));
+  }else{
+    p.items.forEach(i => DB.todos.push(Object.assign({id:uid('t'), title:i, subs:[]}, base)));
+  }
+  save(); closeM(); go('todo'); toast('ToDoを追加しました');
+}
+/* ---------- カテゴリーの追加・編集 ---------- */
+const CAT_PALETTE = ['#2f6fd0','#e8792b','#22a06b','#8b5cf6','#17a2a2','#d63384','#d4a017','#d94a4a','#6b7280','#0ea5e9'];
+let CAT_BACK = null;   // ToDo編集中に呼ばれた場合の復帰先
+function openCat(id, fromTodo){
+  if(fromTodo){ CAT_BACK = M; } else { CAT_BACK = null; }
+  M = id ? Object.assign({}, DB.cats.find(c=>c.id===id))
+         : {id:'', name:'', color: CAT_PALETTE[DB.cats.length % CAT_PALETTE.length]};
+  drawCat();
+}
+function drawCat(){
+  const n = M.id ? DB.todos.filter(t => t.cat === M.id).length : 0;
+  shell(M.id ? 'カテゴリーの編集' : 'カテゴリーを追加',
+    f('カテゴリー名','<input value="'+esc(M.name)+'" oninput="M.name=this.value" placeholder="例）見積・請求">') +
+    f('色','<div class="pick" style="gap:8px">' + CAT_PALETTE.map(c =>
+      '<button type="button" onclick="M.color=\''+c+'\';drawCat()" title="'+c+'" ' +
+      'style="width:34px;height:34px;border-radius:50%;padding:0;background:'+c+';' +
+      'border:3px solid '+(M.color===c?'var(--tx)':'transparent')+'"></button>').join('') +
+      '<input type="color" value="'+M.color+'" onchange="M.color=this.value;drawCat()" ' +
+      'style="width:44px;height:34px;border:none;background:none;padding:0">' + '</div>') +
+    '<div class="hintline">プレビュー：' + '<span class="tag" style="background:'+M.color+'22;color:'+M.color+'">' +
+      esc(M.name||'カテゴリー名') + '</span></div>' +
+    (M.id && n ? '<div class="hintline">このカテゴリーのToDo：'+n+'件（削除すると未分類に移ります）</div>' : ''),
+    (M.id ? '<button class="btn dg" onclick="delCat()">削除</button>' : '') +
+    '<div class="sp"></div><button class="btn" onclick="backFromCat()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveCat()">保存</button>');
+}
+function backFromCat(){
+  if(CAT_BACK){ M = CAT_BACK; CAT_BACK = null; drawTodo(); }
+  else closeM();
+}
+function saveCat(){
+  if(!M.name.trim()){ alert('カテゴリー名を入力してください'); return; }
+  let id = M.id;
+  if(id) Object.assign(DB.cats.find(c=>c.id===id), M);
+  else { id = M.id = uid('c'); DB.cats.push(Object.assign({}, M)); }
+  save();
+  if(CAT_BACK){ CAT_BACK.cat = id; M = CAT_BACK; CAT_BACK = null; drawTodo(); }
+  else { closeM(); render(); }
+  toast('カテゴリーを保存しました');
+}
+function delCat(){
+  const n = DB.todos.filter(t => t.cat === M.id).length;
+  if(!confirm('このカテゴリーを削除します。'+(n?'ToDo '+n+'件は「未分類」に移ります。':''))) return;
+  DB.todos.forEach(t => { if(t.cat === M.id) t.cat = ''; });
+  DB.tpl.forEach(p => { if(p.cat === M.id) p.cat = ''; });
+  DB.cats = DB.cats.filter(c => c.id !== M.id);
+  if(S.todoF.cat === M.id) S.todoF.cat = 'all';
+  save(); CAT_BACK = null; closeM(); render();
+}
+function moveCat(id, dir){
+  const i = DB.cats.findIndex(c => c.id === id), j = i + dir;
+  if(i < 0 || j < 0 || j >= DB.cats.length) return;
+  const t = DB.cats[i]; DB.cats[i] = DB.cats[j]; DB.cats[j] = t;
+  save(); render();
+}
+
+/* テンプレート編集 */
+function openTpl(id){
+  M = id ? Object.assign({}, DB.tpl.find(p=>p.id===id)) : {id:'', name:'', cat:'', items:['']};
+  M.items = M.items.slice(); drawTpl();
+}
+function drawTpl(){
+  shell(M.id?'テンプレートの編集':'テンプレートを追加',
+    f('名前','<input value="'+esc(M.name)+'" oninput="M.name=this.value" placeholder="例）給湯器交換">') +
+    f('既定のカテゴリー','<select onchange="M.cat=this.value"><option value="">未分類</option>' +
+      DB.cats.map(c=>'<option value="'+c.id+'"'+(M.cat===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>') +
+    '<div class="sec"><h4>作業項目</h4>' +
+      M.items.map((t,i)=>'<div style="display:flex;gap:6px"><input value="'+esc(t)+'" oninput="M.items['+i+']=this.value" ' +
+        'style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px">' +
+        '<button class="btn sm dg" onclick="M.items.splice('+i+',1);drawTpl()">×</button></div>').join('') +
+      '<button class="btn sm" onclick="M.items.push(\'\');drawTpl()">＋ 項目を追加</button></div>',
+    (M.id?'<button class="btn dg" onclick="DB.tpl=DB.tpl.filter(p=>p.id!==M.id);save();closeM();render()">削除</button>':'') +
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveTpl()">保存</button>');
+}
+function saveTpl(){
+  M.items = M.items.filter(t=>t.trim());
+  if(!M.name.trim()||!M.items.length){ alert('名前と項目を入力してください'); return; }
+  if(M.id) Object.assign(DB.tpl.find(p=>p.id===M.id), M);
+  else { M.id = uid('p'); DB.tpl.push(M); }
+  save(); closeM(); render();
+}
+
+/* ============================================================
+   日報／勤怠モーダル
+   ============================================================ */
+function openReport(id){
+  M = id ? Object.assign({}, DB.reports.find(r=>r.id===id)) : {id:'', date:S.date, who: isMe()?[S.me]:[], hours:8, body:''};
+  M.who = (M.who||[]).slice(); drawReport();
+}
+function drawReport(){
+  shell('日報',
+    '<div class="grid2">' + f('日付','<input type="date" value="'+M.date+'" onchange="M.date=this.value">') +
+      f('実働（時間）','<input type="number" step="0.5" min="0" value="'+M.hours+'" onchange="M.hours=+this.value||0">') + '</div>' +
+    '<div class="sec"><h4>担当者（複数選択できます）</h4>' + whoPicker(M.who,'repWho') + '</div>' +
+    f('作業内容','<textarea style="min-height:150px" oninput="M.body=this.value">'+esc(M.body)+'</textarea>'),
+    (M.id?'<button class="btn dg" onclick="DB.reports=DB.reports.filter(r=>r.id!==M.id);save();closeM();render()">削除</button>':'') +
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveReport()">保存</button>');
+}
+function repWho(id){ M.who = togWho(M.who, id); drawReport(); }
+function saveReport(){
+  if(!M.who.length){ alert('担当者を選んでください'); return; }
+  if(M.id) Object.assign(DB.reports.find(r=>r.id===M.id), M);
+  else { M.id = uid('r'); DB.reports.push(M); }
+  save(); closeM(); render(); toast('日報を保存しました');
+}
+function openAtd(staffId){
+  staffId = staffId || (isMe() ? S.me : null);
+  const ex = DB.atd.find(a => a.date===S.date && a.who===staffId);
+  M = ex ? Object.assign({}, ex) : {id:'', date:S.date, who:staffId||(isMe()?S.me:(activeStaff()[0]||{}).id), type:'出勤', note:''};
+  drawAtd();
+}
+function drawAtd(){
+  shell('勤怠の登録',
+    '<div class="grid2">' + f('日付','<input type="date" value="'+M.date+'" onchange="M.date=this.value">') +
+      f('担当者','<select onchange="M.who=this.value">'+activeStaff().map(s=>'<option value="'+s.id+'"'+(M.who===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>') + '</div>' +
+    f('区分','<div class="pick plain">'+ATD.map(t=>'<button type="button" class="'+(M.type===t?'on':'')+'" onclick="M.type=\''+t+'\';drawAtd()">'+t+'</button>').join('')+'</div>') +
+    f('備考','<input value="'+esc(M.note)+'" oninput="M.note=this.value">'),
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveAtd()">保存</button>');
+}
+function saveAtd(){
+  const ex = DB.atd.find(a => a.date===M.date && a.who===M.who);
+  if(ex) Object.assign(ex, M); else { M.id = uid('a'); DB.atd.push(M); }
+  save(); closeM(); render(); toast('保存しました');
+}
+
+/* ============================================================
+   はじめての設定（スマホ向けウィザード）
+   ============================================================ */
+function b64e(o){ return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64d(t){ try{ return JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g,'+').replace(/_/g,'/'))))); }catch(e){ return null; } }
+/* 配布リンク（#setup=...）から同期設定を受け取る */
+function applySetupLink(){
+  const m = (location.hash||'').match(/setup=([A-Za-z0-9\-_]+)/);
+  if(!m) return false;
+  const c = b64d(m[1]);
+  history.replaceState(null,'',location.pathname + location.search);
+  if(!c || !c.u) return false;
+  DB.cfg.gasUrl = c.u; DB.cfg.gasToken = c.t || ''; save();
+  return true;
+}
+function makeSetupLink(){
+  if(!DB.cfg.gasUrl){ alert('先に Apps Script のURLと合言葉を入力してください'); return; }
+  const link = location.origin + location.pathname + '#setup=' + b64e({u:DB.cfg.gasUrl, t:DB.cfg.gasToken||''});
+  const el = document.getElementById('shareLink');
+  if(el){ el.value = link; el.select(); }
+  try{ navigator.clipboard.writeText(link); toast('リンクをコピーしました'); }
+  catch(e){ toast('下の欄をコピーしてください'); }
+}
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
+const needSetup = () => !DB.cfg.actor || (!DB.cfg.gasUrl && !DB.cfg.setupDone);
+
+let W = null;
+function openWizard(){
+  W = {step: DB.cfg.gasUrl ? 2 : 1, url: DB.cfg.gasUrl||'', token: DB.cfg.gasToken||'',
+       me: DB.cfg.actor||'', mode: DB.cfg.mode||'me', msg:''};
+  drawWizard();
+}
+function drawWizard(){
+  const steps = ['同期の設定','自分の名前','表示のしかた','完了'];
+  const bar = '<div style="display:flex;gap:6px;margin-bottom:4px">' + steps.map((t,i) =>
+    '<div style="flex:1;height:4px;border-radius:2px;background:'+(i < W.step ? 'var(--accent)' : 'var(--line)')+'"></div>').join('') +
+    '</div><div class="hintline">ステップ '+W.step+' / 4　'+steps[W.step-1]+'</div>';
+
+  let body = '', foot = '';
+  if(W.step === 1){
+    body = '<div class="hintline">事務所から届いた「同期リンク」をタップした場合、この欄はすでに入っています。空の場合だけ入力してください。</div>' +
+      f('Apps Script の URL','<input value="'+esc(W.url)+'" placeholder="https://script.google.com/macros/s/.../exec" oninput="W.url=this.value.trim()">') +
+      f('合言葉','<input value="'+esc(W.token)+'" oninput="W.token=this.value.trim()">') +
+      (W.msg ? '<div class="hintline">'+W.msg+'</div>' : '') +
+      '<button class="btn" onclick="wizTest()">接続を確認する</button>';
+    foot = '<button class="btn gh" onclick="wizSkip()">あとで設定する</button><div class="sp"></div>' +
+      '<button class="btn pri" onclick="wizNext()">次へ</button>';
+  }else if(W.step === 2){
+    body = '<div class="hintline">この端末を使う人を選んでください。入金や金額の変更は、この名前で記録に残ります。</div>' +
+      '<div class="pick">' + activeStaff().map(s =>
+        '<button type="button" class="'+(W.me===s.id?'on':'')+'" onclick="W.me=\''+s.id+'\';drawWizard()">' +
+        avatar(s)+esc(s.full||s.name)+'</button>').join('') + '</div>';
+    foot = '<button class="btn" onclick="W.step=1;drawWizard()">戻る</button><div class="sp"></div>' +
+      '<button class="btn pri" onclick="wizNext()">次へ</button>';
+  }else if(W.step === 3){
+    body = '<div class="hintline">ふだんの見え方を選びます。あとから左上で切り替えられます。</div>' +
+      '<div class="pick plain" style="flex-direction:column;align-items:stretch">' +
+        '<button type="button" class="'+(W.mode==='me'?'on':'')+'" onclick="W.mode=\'me\';drawWizard()" style="text-align:left;padding:12px 14px">' +
+          '<b>自分の予定だけ（現場向け・おすすめ）</b><br><span style="font-size:11.5px;opacity:.8">自分の1日の流れとToDoだけが出ます</span></button>' +
+        '<button type="button" class="'+(W.mode==='all'?'on':'')+'" onclick="W.mode=\'all\';drawWizard()" style="text-align:left;padding:12px 14px">' +
+          '<b>全員の予定（事務所向け）</b><br><span style="font-size:11.5px;opacity:.8">担当者ごとのボードと売掛会議を使います</span></button>' +
+      '</div>';
+    foot = '<button class="btn" onclick="W.step=2;drawWizard()">戻る</button><div class="sp"></div>' +
+      '<button class="btn pri" onclick="wizNext()">次へ</button>';
+  }else{
+    body = '<div class="sec"><h4>ホーム画面に追加しておくと便利です</h4>' +
+      (isIOS()
+        ? '<div style="font-size:13px;line-height:1.9">① 画面下の<b>共有ボタン</b>（□に↑）をタップ<br>② <b>「ホーム画面に追加」</b>をタップ<br>③ 名前を「金剛住機」にして<b>追加</b></div>'
+        : '<div style="font-size:13px;line-height:1.9">① 右上の<b>「⋮」</b>をタップ<br>② <b>「ホーム画面に追加」</b>をタップ<br>③ 名前を「金剛住機」にして<b>追加</b></div>') +
+      '<div class="hintline">次からはアイコンをタップするだけで開けます。</div></div>' +
+      '<div class="sec"><h4>設定内容</h4><div style="font-size:13px;line-height:1.8">' +
+        '操作者：<b>'+esc((staffById(W.me)||{}).full||(staffById(W.me)||{}).name||'未設定')+'</b><br>' +
+        '表示：<b>'+(W.mode==='me'?'自分の予定だけ':'全員の予定')+'</b><br>' +
+        '同期：<b>'+(W.url?'設定済み':'未設定')+'</b></div></div>';
+    foot = '<button class="btn" onclick="W.step=3;drawWizard()">戻る</button><div class="sp"></div>' +
+      '<button class="btn pri" onclick="wizDone()">はじめる</button>';
+  }
+  shell('はじめての設定', bar + body, foot);
+}
+function wizTest(){
+  const msg = v => { W.msg = v; drawWizard(); };
+  if(!W.url){ msg('<span style="color:var(--danger)">URLを入力してください</span>'); return; }
+  const keepU = DB.cfg.gasUrl, keepT = DB.cfg.gasToken;
+  DB.cfg.gasUrl = W.url; DB.cfg.gasToken = W.token;
+  msg('確認中…');
+  Sync.call('pull').then(r => {
+    if(r.ok) msg('<span style="color:var(--ok)">つながりました。次へ進んでください。</span>');
+    else { DB.cfg.gasUrl = keepU; DB.cfg.gasToken = keepT;
+      msg('<span style="color:var(--danger)">'+esc(r.error||'エラー')+'</span>'); }
+  }).catch(e => { DB.cfg.gasUrl = keepU; DB.cfg.gasToken = keepT;
+    msg('<span style="color:var(--danger)">'+esc(e.message)+'</span>'); });
+}
+function wizNext(){
+  if(W.step === 1){ DB.cfg.gasUrl = W.url; DB.cfg.gasToken = W.token; save(); }
+  if(W.step === 2 && !W.me){ alert('名前を選んでください'); return; }
+  W.step++; drawWizard();
+}
+function wizSkip(){ DB.cfg.setupDone = true; save(); closeM(); render(); }
+function wizDone(){
+  DB.cfg.actor = W.me; S.me = W.me; DB.cfg.me = W.me;
+  DB.cfg.mode = W.mode; S.mode = W.mode;
+  DB.cfg.gasUrl = W.url; DB.cfg.gasToken = W.token; DB.cfg.setupDone = true;
+  save(); closeM(); render(); startAutoSync();
+  toast('設定が完了しました');
+}
+
+/* ---------- 起動 ---------- */
+purgeOld();
+const fromLink = applySetupLink();
+save();          // 初回に更新時刻の基準を作る
+S.mode = DB.cfg.mode || 'all';
+S.me   = DB.cfg.me || (activeStaff()[0]||{}).id || '';
+render();
+startAutoSync();
+paintSync();
+refreshNotes();
+if(needSetup() || fromLink) setTimeout(openWizard, 400);
+</script>
+</body>
+</html>
