@@ -267,10 +267,26 @@ tbody tr:hover{background:var(--line-2)}
 .bar i{display:block;height:100%;background:var(--ok)}
 
 /* ---------- week ---------- */
+/* 同期ボタン */
+.btn.syncb{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn.syncb.busy{opacity:.7}
+.btn.syncb.busy .ic, .btn.syncb.busy{animation:spin 1s linear infinite}
+.btn.syncb.err{border-color:var(--danger);color:var(--danger)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn.syncb.busy{animation:none}
+.btn.syncb.busy span{opacity:.8}
+
+/* 週間予定：担当者の列は左に固定したまま横スクロール */
+.wk th:first-child, .wk td:first-child{position:sticky;left:0;background:var(--panel);z-index:2}
+.wk thead th:first-child{z-index:3}
+.wk th:first-child::after, .wk td:first-child::after{content:'';position:absolute;top:0;right:0;bottom:0;
+  width:1px;background:var(--line)}
+.wk th:first-child, .wk td:first-child{position:sticky}
 .wk{overflow-x:auto;border-top:1px solid var(--line)}
 .wk table{min-width:920px}
 .wk th{padding:8px;text-align:center;border-left:1px solid var(--line-2)}
-.wk th:first-child{text-align:left;width:150px;border-left:none}
+.wk th:first-child{text-align:left;width:150px;min-width:120px;border-left:none}
+@media(max-width:700px){ .wk th:first-child{width:96px;min-width:96px} .wk td:first-child{min-width:96px} }
 .wk th.sat{color:var(--info)} .wk th.sun{color:var(--danger)}
 .wk td{border-left:1px solid var(--line-2);vertical-align:top;min-width:110px}
 .wk td:first-child{border-left:none}
@@ -432,6 +448,21 @@ function importGTasks(d, owner){
   return d;
 }
 
+/* ============================================================
+   同期先（最初から組み込んである設定）
+   端末の設定が消えても、ここから自動で復元されます。
+   ※ 変えるときは、この2行と Apps Script 側の TOKEN を必ず合わせてください。
+   ============================================================ */
+const BUILTIN_URL   = 'https://script.google.com/macros/s/AKfycbxmxEyqeWQzVfJzmQ4-xrkWS6suvynEjIhwpl7LeoYAHgdIg-vxy8pBIFTZJaT-uYHM/exec';
+const BUILTIN_TOKEN = 'kongo2026';
+function useBuiltin_(d){
+  if(!BUILTIN_URL || !d || !d.cfg) return;
+  if(!d.cfg.gasUrl){
+    d.cfg.gasUrl = BUILTIN_URL; d.cfg.gasToken = BUILTIN_TOKEN;
+    d.cfg.setupDone = true; d.cfg.seen = true;
+  }
+}
+
 /* ---------- 初期データ ---------- */
 function seed(){
   const st = [
@@ -482,7 +513,7 @@ function initSeq(d){
 function load(){
   try{
     const raw = localStorage.getItem(KEY);
-    if(!raw){ const z = markSeed(seed()); initSeq(z); return z; }
+    if(!raw){ const z = markSeed(seed()); initSeq(z); useBuiltin_(z); return z; }
     const d = JSON.parse(raw);
     const base = markSeed(seed());
     d.cfg = Object.assign({}, base.cfg, d.cfg||{});
@@ -510,6 +541,8 @@ function load(){
     if(!Array.isArray(d.cfg.admins) || !d.cfg.admins.length) d.cfg.admins = ['s1'];
     if(!d.cfg.lock || typeof d.cfg.lock !== 'object') d.cfg.lock = {jobs:true, todos:true, pays:true, sch:false};
     if(typeof d.cfg.cashDays !== 'number') d.cfg.cashDays = 7;
+    /* 同期先が空なら、組み込みの設定で埋める（設定が消えても自動で戻る） */
+    useBuiltin_(d);
     initSeq(d);
     d.jobs.forEach(j => { if(j.del === undefined) j.del = false; });
     if(d.staffRev !== 'r4'){
@@ -1041,7 +1074,35 @@ async function doSync(silent){
   }
   Sync.busy = false;
 }
+/* どのページにも出る同期ボタン */
+function syncBtn(){
+  if(!Sync.ready()) return '<button class="btn sm" onclick="go(\'cfg\')" title="同期の設定">⟳ 未設定</button>';
+  const busy = Sync.busy, err = Sync.status === 'エラー';
+  const lb = busy ? '同期中…' : (DB.cfg.lastSync ? agoLabel(DB.cfg.lastSync) : '未同期');
+  return '<button class="btn sm syncb'+(busy?' busy':'')+(err?' err':'')+'" onclick="doSync()" ' +
+    'title="押すと、ほかの端末とGoogleカレンダーの最新を取り込みます">⟳ <span>'+esc(lb)+'</span></button>';
+}
+/* 同期の状態カード（本日のボードと設定に出ます） */
+function syncCard(){
+  if(!Sync.ready())
+    return '<section class="panel"><header><h2>同期の状態</h2></header>' +
+      '<div class="pad hintline">同期の設定がされていません。設定画面をご確認ください。</div></section>';
+  const n = (DB.gcal||[]).length;
+  const cal = DB.cfg.calAt ? (n + '件を取得（' + agoLabel(DB.cfg.calAt) + '）') : 'まだ取得していません';
+  const auto = DB.cfg.autoSync !== false;
+  const cell = (t, v, ok) => '<div style="min-width:150px"><div class="hintline" style="margin:0">'+t+'</div>' +
+    '<b style="font-size:13.5px;color:'+(ok?'var(--ok)':'var(--tx-2)')+'">'+v+'</b></div>';
+  return '<section class="panel"><header><h2>同期の状態</h2>' +
+    '<span class="hint">ほかの端末やGoogleカレンダーの内容が届いているか</span><div class="sp"></div>' +
+    '<button class="btn sm pri" onclick="doSync()">いま同期する</button></header>' +
+    '<div class="pad" style="display:flex;gap:22px;flex-wrap:wrap">' +
+      cell('ほかの端末との同期', DB.cfg.lastSync ? esc(jStamp(DB.cfg.lastSync))+'（'+esc(agoLabel(DB.cfg.lastSync))+'）' : '未同期', !!DB.cfg.lastSync) +
+      cell('Googleカレンダー', esc(cal), !!DB.cfg.calAt) +
+      cell('自動で同期', auto ? 'オン（'+(DB.cfg.pollSec||30)+'秒ごとに確認）' : 'オフ', auto) +
+    '</div></section>';
+}
 function paintSync(){
+  const sb = document.getElementById('syncbtn'); if(sb) sb.innerHTML = syncBtn();
   const el = document.getElementById('syncst'); if(!el) return;
   const ok = Sync.status === '同期済';
   el.innerHTML = Sync.ready()
@@ -1156,7 +1217,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v2.7</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v2.8</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1167,6 +1228,7 @@ function render(){
           '<p>'+(isMe() ? esc((meStaff()||{}).full || (meStaff()||{}).name || '') + ' さんの表示' : v.sub)+'</p></div></button>' +
         vmenuHtml() +
         '<div class="sp"></div>' +
+        '<span id="syncbtn">'+syncBtn()+'</span>' +
         '<button class="btn bell" onclick="openNotes()" title="お知らせ">🔔<span id="bellct" class="bellct"></span></button>' +
         topRight() +
       '</div>' +
@@ -1178,6 +1240,12 @@ function render(){
   try{ paintHint(); }catch(e){}
 }
 function setActor(id){ DB.cfg.actor = id; save(); render(); }
+function resetSync(){
+  DB.cfg.gasUrl = BUILTIN_URL; DB.cfg.gasToken = BUILTIN_TOKEN;
+  DB.cfg.setupDone = true; DB.cfg.seen = true;
+  save(); render(); startAutoSync(); toast('組み込みの設定に戻しました');
+  doSync();
+}
 function togAdmin(id){
   if(!isAdmin()) return;
   const a = admins().slice(), i = a.indexOf(id);
@@ -1353,6 +1421,7 @@ function viewBoard(){
   }).join('');
 
   document.getElementById('body').innerHTML =
+    syncCard() +
     '<div class="stats">' +
       stat('本日の案件', day.filter(e=>!e.ext).length, '件', 'var(--info)', 'day') +
       stat('本日の至急', urgent, '件', urgent?'var(--danger)':'var(--ok)', 'urgent') +
@@ -1425,6 +1494,7 @@ function viewBoardMe(){
   }).join('');
 
   document.getElementById('body').innerHTML =
+    syncCard() +
     '<div class="meband">' + avatar(me) + '<div><b>'+esc((me||{}).full||(me||{}).name||'')+'</b>' +
       '<div style="font-size:11.5px;color:var(--tx-3)">'+fmtD(d)+
       (atd && atd.type!=='出勤' ? '　<span class="tag b">'+esc(atd.type)+'</span>' : '')+'</div></div>' +
@@ -2240,6 +2310,7 @@ function viewAtd(){
 function viewCfg(){
   const c = DB.cfg;
   document.getElementById('body').innerHTML =
+    syncCard() +
     '<section class="panel"><header><h2>移動時間の設定</h2></header><div class="pad" style="display:flex;flex-direction:column;gap:14px">' +
       '<div class="f"><label>出発地（自社）</label>' +
         '<input value="'+esc(c.origin)+'" onchange="DB.cfg.origin=this.value;save();toast(\'保存しました\')"></div>' +
@@ -2329,6 +2400,10 @@ function viewCfg(){
       '<div class="f"><label>Apps Script の Web アプリ URL</label>' +
         '<input value="'+esc(DB.cfg.gasUrl||'')+'" placeholder="https://script.google.com/macros/s/..../exec" ' +
         'onchange="DB.cfg.gasUrl=this.value.trim();save();render()"></div>' +
+      '<div class="hintline">'+((DB.cfg.gasUrl===BUILTIN_URL)
+        ? '✅ このアプリには同期先が<b>最初から組み込まれています</b>。端末の設定が消えても自動で元に戻ります。'
+        : '⚠ 組み込みの設定とは違うものが入っています。')+
+        ' <button class="btn sm" onclick="resetSync()">組み込みの設定に戻す</button></div>' +
       '<div class="f"><label>合言葉（Apps Script 側と同じ文字列）</label>' +
         '<input value="'+esc(DB.cfg.gasToken||'')+'" onchange="DB.cfg.gasToken=this.value.trim();save()">' +
         '<span class="hintline">URLを知られても、この合言葉が合わないと読み書きできません。</span></div>' +
@@ -3386,7 +3461,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '2.7';
+const APP_VER = '2.8';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
@@ -3433,6 +3508,7 @@ async function checkUpdate(){
 if(location.search && /[?&](v|_c)=/.test(location.search))
   try{ history.replaceState(null, '', location.pathname + location.hash); }catch(e){}
 purgeOld();
+useBuiltin_(DB);
 const fromLink = applySetupLink();
 if(!DB.cfg.actor) setActorDefault();   /* 名前を選ばなくても、そのまま使える */
 save();          // 初回に更新時刻の基準を作る
