@@ -21,8 +21,29 @@ html[data-theme="dark"]{
   --tx:#e8edf4; --tx-2:#a4b0c0; --tx-3:#7c8898;
   --sh:0 1px 2px rgba(0,0,0,.4); --sh-2:0 8px 28px rgba(0,0,0,.5);
 }
+/* ---------- ページごとの背景色（いまどの画面かがひと目でわかるように） ---------- */
+html[data-view="board"] { --bg:#eef7e6 }   /* 本日のボード：薄い黄緑 */
+html[data-view="week"]  { --bg:#e8f3fc }   /* 週間予定：薄い水色 */
+html[data-view="gantt"] { --bg:#efedfb }   /* 月間工程表：薄い藤色 */
+html[data-view="jobs"]  { --bg:#fceef3 }   /* 受付・案件：薄いピンク */
+html[data-view="todo"]  { --bg:#fdf1e4 }   /* ToDo：薄いオレンジ */
+html[data-view="sales"] { --bg:#fbf8e2 }   /* 売掛会議：薄いクリーム */
+html[data-view="report"]{ --bg:#f6f2ea }   /* 日報：薄いベージュ */
+html[data-view="atd"]   { --bg:#e6f6f1 }   /* 勤怠・休暇：薄いミント */
+html[data-view="cfg"]   { --bg:#eef1f5 }   /* 設定：薄いグレー */
+html[data-view="admin"] { --bg:#f1ebf6 }   /* 管理：薄い紫 */
+html[data-theme="dark"][data-view="board"] { --bg:#121a13 }
+html[data-theme="dark"][data-view="week"]  { --bg:#101822 }
+html[data-theme="dark"][data-view="gantt"] { --bg:#15131f }
+html[data-theme="dark"][data-view="jobs"]  { --bg:#1c1219 }
+html[data-theme="dark"][data-view="todo"]  { --bg:#1c1610 }
+html[data-theme="dark"][data-view="sales"] { --bg:#1a1810 }
+html[data-theme="dark"][data-view="report"]{ --bg:#191611 }
+html[data-theme="dark"][data-view="atd"]   { --bg:#0f1c19 }
+html[data-theme="dark"][data-view="cfg"]   { --bg:#13171e }
+html[data-theme="dark"][data-view="admin"] { --bg:#18121e }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);
+body{margin:0;background:var(--bg);color:var(--tx);transition:background .18s;
   font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,-apple-system,sans-serif;
   font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
@@ -296,6 +317,37 @@ tbody tr:hover{background:var(--line-2)}
 .wchip.ext{background:repeating-linear-gradient(135deg,rgba(124,136,152,.18) 0 6px,rgba(124,136,152,.06) 6px 12px)!important;
   border:1px solid #97a2b0;color:var(--tx-2)}
 
+/* 月間工程表 */
+.mg{overflow-x:auto;border-top:1px solid var(--line)}
+.mg table{min-width:900px;border-collapse:collapse}
+.mg th,.mg td{border-left:1px solid var(--line-2);border-bottom:1px solid var(--line-2);padding:0}
+.mg th{padding:6px 1px;text-align:center;font-size:11px;font-weight:700;color:var(--tx-2)}
+.mg th small{display:block;font-size:9.5px;font-weight:600;color:var(--tx-3)}
+.mg th.sat,.mg th.sat small{color:var(--info)} .mg th.sun,.mg th.sun small{color:var(--danger)}
+.mg th.tdy{background:rgba(232,121,43,.14);color:var(--accent-d)}
+.mg td.dcell{min-width:26px;height:42px;vertical-align:middle}
+.mg td:first-child{vertical-align:middle}
+.mg td.tdy{background:rgba(232,121,43,.09)}
+.mg th:first-child,.mg td:first-child{position:sticky;left:0;background:var(--panel);z-index:2;
+  width:186px;min-width:186px;max-width:186px;text-align:left;padding:6px 10px;border-left:none}
+.mg thead th:first-child{z-index:3;text-align:left}
+.mg th:first-child::after,.mg td:first-child::after{content:'';position:absolute;top:0;right:0;bottom:0;width:1px;background:var(--line)}
+.mg .nm{font-size:12.5px;font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mg .sb{font-size:10.5px;color:var(--tx-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mg .gb{display:flex;align-items:center;gap:5px;height:26px;margin:0 2px;border-radius:7px;color:#fff;
+  font-size:11px;font-weight:600;padding:0 8px;white-space:nowrap;overflow:hidden;cursor:pointer;box-shadow:var(--sh)}
+.mg .gb:hover{filter:brightness(1.08)}
+.mg .gb.lcut{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0}
+.mg .gb.rcut{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0}
+@media(max-width:700px){ .mg th:first-child,.mg td:first-child{width:124px;min-width:124px;max-width:124px} }
+/* 工事バンド（日・週の予定の上に出す帯） */
+.band{padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.bandrow{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-left-width:5px;
+  border-radius:9px;padding:7px 11px;cursor:pointer;background:var(--panel)}
+.bandrow:hover{background:var(--line-2)}
+.bandrow b{font-size:13px}
+.bandrow .mt{font-size:11.5px;color:var(--tx-3)}
+.bandrow .sp{margin-left:auto}
 .bell{position:relative;padding:9px 12px}
 .bellct{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;border-radius:10px;background:var(--danger);
   color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 5px}
@@ -400,6 +452,8 @@ const TRAVEL_TABLE_DEFAULT = [
 
 const uid = p => p + '_' + Math.random().toString(36).slice(2, 9);
 const SEED_U = '2020-01-01T00:00:00.000Z';
+/* 担当者の並び順（事務所を先頭に） */
+const STAFF_ORD = ['s6','s1','s2','s3','s4','s5','s7','s8'];
 const pad = n => String(n).padStart(2, '0');
 const iso = d => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
 const today = () => iso(new Date());
@@ -466,13 +520,14 @@ function useBuiltin_(d){
 /* ---------- 初期データ ---------- */
 function seed(){
   const st = [
-    {id:'s1', name:'木村', full:'',          role:'', mail:'', color:'#2f6fd0', active:true},
-    {id:'s2', name:'岡原', full:'',          role:'', mail:'', color:'#22a06b', active:true},
-    {id:'s3', name:'福光', full:'',          role:'', mail:'', color:'#e8792b', active:true},
-    {id:'s4', name:'久保', full:'',          role:'', mail:'', color:'#8b5cf6', active:true},
-    {id:'s5', name:'中村', full:'',          role:'', mail:'', color:'#d63384', active:true},
-    {id:'s6', name:'事務所', full:'',        role:'', mail:'', color:'#17a2a2', active:true},
-    {id:'s7', name:'今村', full:'',          role:'', mail:'', color:'#0ea5e9', active:true}
+    {id:'s6', name:'事務所', full:'',        role:'', mail:'', color:'#17a2a2', active:true, ord:0},
+    {id:'s1', name:'木村', full:'',          role:'', mail:'', color:'#2f6fd0', active:true, ord:1},
+    {id:'s2', name:'岡原', full:'',          role:'', mail:'', color:'#22a06b', active:true, ord:2},
+    {id:'s3', name:'福光', full:'',          role:'', mail:'', color:'#e8792b', active:true, ord:3},
+    {id:'s4', name:'久保', full:'',          role:'', mail:'', color:'#8b5cf6', active:true, ord:4},
+    {id:'s5', name:'中村', full:'',          role:'', mail:'', color:'#d63384', active:true, ord:5},
+    {id:'s7', name:'今村', full:'',          role:'', mail:'', color:'#0ea5e9', active:true, ord:6},
+    {id:'s8', name:'川崎', full:'',          role:'', mail:'', color:'#b45309', active:true, ord:7}
   ];
   const t = today();
   const jobs = [];
@@ -485,7 +540,7 @@ function seed(){
   ];
   return importGTasks({
     staff: st, jobs, sch, todos, tpl, cats: [], imported:'gtasks1', log: [], deposits: [], closes: [], tomb: [], rev: 0, gcal: [],
-    reports: [], atd: [],
+    reports: [], atd: [], spans: [],
     cfg: {
       apiKey:'', origin: ORIGIN_DEFAULT, travel: TRAVEL_TABLE_DEFAULT,
       autoTravel:true, defBuffer:15, wStart:8, wEnd:19, theme:'light', keepDays:30, actor:'', gasUrl:'', gasToken:'', lastSync:'',
@@ -497,7 +552,7 @@ function seed(){
 }
 /* 初期データは「一番古い更新」として扱う（他端末の実データを壊さないため） */
 function markSeed(d){
-  ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd'].forEach(k =>
+  ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans'].forEach(k =>
     (d[k]||[]).forEach(r => { if(!r._u) r._u = SEED_U; }));
   return d;
 }
@@ -518,7 +573,7 @@ function load(){
     const base = markSeed(seed());
     d.cfg = Object.assign({}, base.cfg, d.cfg||{});
     if(!d.cfg.travel || !d.cfg.travel.length) d.cfg.travel = TRAVEL_TABLE_DEFAULT;
-    ['staff','jobs','sch','todos','tpl','reports','atd','cats','log','deposits','closes','tomb'].forEach(k => { if(!Array.isArray(d[k])) d[k] = base[k]||[]; });
+    ['staff','jobs','sch','todos','tpl','reports','atd','cats','log','deposits','closes','tomb','spans'].forEach(k => { if(!Array.isArray(d[k])) d[k] = base[k]||[]; });
     if(typeof d.rev !== 'number') d.rev = 0;
     if(!Array.isArray(d.gcal)) d.gcal = [];
     if(!d.cfg.cal || typeof d.cfg.cal !== 'object') d.cfg.cal = {};
@@ -545,16 +600,23 @@ function load(){
     useBuiltin_(d);
     initSeq(d);
     d.jobs.forEach(j => { if(j.del === undefined) j.del = false; });
-    if(d.staffRev !== 'r4'){
-      const rev = d.staffRev;
-      d.staffRev = 'r4';
+    if(d.staffRev !== 'r5'){
+      d.staffRev = 'r5';
       const kw = d.staff.find(x => x.id === 's6');
       if(kw && kw.name === '川崎'){ kw.name = '事務所'; kw._u = nowISO(); }
       const k = d.staff.find(x => x.id === 's1');
       if(k && k.full === '木村 大吾'){ k.full = ''; k._u = nowISO(); }
       if(!d.staff.some(x => x.id === 's7'))
         d.staff.push({id:'s7', name:'今村', full:'', role:'', mail:'', color:'#0ea5e9', active:true, _u:nowISO()});
+      if(!d.staff.some(x => x.id === 's8'))
+        d.staff.push({id:'s8', name:'川崎', full:'', role:'', mail:'', color:'#b45309', active:true, _u:nowISO()});
+      /* 並び順：事務所を先頭に、あとは従来どおり */
+      STAFF_ORD.forEach((id, i) => { const s = d.staff.find(x => x.id === id); if(s && s.ord !== i){ s.ord = i; s._u = nowISO(); } });
+      let n = STAFF_ORD.length;
+      d.staff.forEach(s => { if(typeof s.ord !== 'number'){ s.ord = n++; s._u = nowISO(); } });
+      d.staff.sort((a,b) => a.ord - b.ord);
     }
+    d.staff.forEach((s,i) => { if(typeof s.ord !== 'number') s.ord = 100 + i; });
     /* 旧形式（単一担当）からの移行 */
     d.sch.forEach(e => { if(!Array.isArray(e.who)) e.who = e.staffId ? [e.staffId] : []; });
     d.todos.forEach(t => { if(!Array.isArray(t.who)) t.who = t.staffId ? [t.staffId] : []; if(!Array.isArray(t.subs)) t.subs = [];
@@ -563,7 +625,7 @@ function load(){
   }catch(e){ return markSeed(seed()); }
 }
 /* 同期対象のコレクション */
-const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd'];
+const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans'];
 const APPEND = ['log','closes'];          // 追記のみ（idで重複排除）
 let SNAP = null;                          // key -> JSON（前回保存時の内容）
 
@@ -652,8 +714,28 @@ function missingCodes(){
   return out;
 }
 const codeStr = n => 'R-' + String(1000 + n).slice(1);
-const activeStaff = () => DB.staff.filter(s => s.active !== false);
+const stOrd = s => (typeof s.ord === 'number' ? s.ord : 999);
+const sortStaff = list => list.slice().sort((a,b) => stOrd(a) - stOrd(b));
+const activeStaff = () => sortStaff(DB.staff.filter(s => s.active !== false));
 const catColor = c => CATS[c] || '#9aa3ae';
+
+/* ---------- 月間工程表（長期の現場） ---------- */
+const liveSpans  = () => (DB.spans||[]).filter(p => !p.del);
+const spanById   = id => (DB.spans||[]).find(p => p.id === id);
+const spanEnd    = p => (p.end && p.end >= p.start) ? p.end : p.start;
+const spanOn     = (p, d) => p.start <= d && d <= spanEnd(p);
+const spanDays   = p => Math.round((parseD(spanEnd(p)) - parseD(p.start)) / 86400000) + 1;
+/* その日に動いている工事（担当者で絞り込み可） */
+function spansOn(d, who){
+  return liveSpans().filter(p => spanOn(p, d) && (!who || (p.who||[]).includes(who)))
+    .sort((a,b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
+}
+/* 期間が月と重なる工事 */
+function spansInRange(from, to){
+  return liveSpans().filter(p => p.start <= to && spanEnd(p) >= from)
+    .sort((a,b) => a.start.localeCompare(b.start) || spanEnd(a).localeCompare(spanEnd(b)) || a.title.localeCompare(b.title));
+}
+const spanColor = p => p.color || catColor(p.cat || '工事');
 /* ToDoカテゴリー */
 const tcatById = id => DB.cats.find(c => c.id === id);
 const tcatName = id => (tcatById(id)||{}).name || '未分類';
@@ -1145,6 +1227,7 @@ function startAutoSync(){
 const VIEWS = [
   {id:'board', label:'本日のボード', ic:'▦', sub:'担当者ごとの予定を一覧'},
   {id:'week',  label:'週間予定',     ic:'▤', sub:'1週間の割り当て状況'},
+  {id:'gantt', label:'月間工程表',   ic:'▬', sub:'長い現場の期間と担当者'},
   {id:'jobs',  label:'受付・案件',   ic:'≡', sub:'電話受付から完了までの管理'},
   {id:'todo',  label:'ToDo',        ic:'✓', sub:'カテゴリー別のタスク管理'},
   {id:'sales', label:'売掛会議',     ic:'¥', sub:'未請求・未入金・現金の点検'},
@@ -1194,6 +1277,8 @@ document.addEventListener('click', e => {
 function render(){
   document.documentElement.setAttribute('data-theme', DB.cfg.theme || 'light');
   const v = VIEWS.find(x => x.id === S.view) || VIEWS[0];
+  /* ページごとに背景色を変える（いまどの画面かがひと目でわかるように） */
+  document.documentElement.setAttribute('data-view', v.id);
   const openJobs = visibleJobs().filter(j => j.status !== '完了').length;
   const openTodo = myTodos(liveTodos()).length;
   const nAlert = alertCount();
@@ -1222,7 +1307,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v2.9</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.0</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1240,7 +1325,7 @@ function render(){
       '<div class="body" id="body"></div>' +
     '</div>' +
   '</div>';
-  ({board:viewBoard, week:viewWeek, jobs:viewJobs, todo:viewTodo, sales:viewSales, report:viewReport, atd:viewAtd, cfg:viewCfg, admin:viewAdmin}[S.view] || viewBoard)();
+  ({board:viewBoard, week:viewWeek, gantt:viewGantt, jobs:viewJobs, todo:viewTodo, sales:viewSales, report:viewReport, atd:viewAtd, cfg:viewCfg, admin:viewAdmin}[S.view] || viewBoard)();
   paintSync();
   try{ paintHint(); }catch(e){}
 }
@@ -1280,6 +1365,11 @@ function topRight(){
       '<button class="btn" onclick="S.wkStart=addD(today(),-((parseD(today()).getDay()+6)%7));render()">今週</button>' +
       '<button class="btn pri" onclick="openSch()">＋ 予定を追加</button>';
   }
+  if(S.view === 'gantt') return '<div class="datenav"><button onclick="shiftMonth(-1)">‹</button>' +
+    '<div class="d"><b>'+S.month.replace('-','/')+'</b><span>月間工程表</span></div>' +
+    '<button onclick="shiftMonth(1)">›</button></div>' +
+    '<button class="btn" onclick="S.month=today().slice(0,7);render()">今月</button>' +
+    '<button class="btn pri" onclick="openSpan()">＋ 工事を追加</button>';
   if(S.view === 'jobs') return '<button class="btn pri" onclick="openJob()">＋ 受付を登録</button>';
   if(S.view === 'sales') return '<div class="datenav"><button onclick="shiftMonth(-1)">‹</button>' +
     '<div class="d"><b>'+S.month.replace('-','/')+'</b><span>売掛会議</span></div>' +
@@ -1436,6 +1526,7 @@ function viewBoard(){
       stat('未完了ToDo', myTodo.length, '件', myTodo.length?'var(--warn)':'var(--ok)', 'todo') +
     '</div>' +
 
+    spanBandHtml(S.date) +
     '<section class="panel"><header><h2>ディスパッチボード</h2>' +
       '<span class="hint">帯をタップで詳細／斜線は移動時間／重なった予定は段を分けて表示</span>' +
       '<div class="sp"></div><button class="btn sm" onclick="openSch()">＋ 予定</button></header>' +
@@ -1515,6 +1606,7 @@ function viewBoardMe(){
     '</div>' +
     (allDayItems(d, S.me).length ? '<div class="hintline" style="padding:0 2px">' +
        allDayItems(d, S.me).map(x => '<span class="tag n" style="cursor:pointer" onclick="'+(x.ext?'openExt(\''+x.id+'\')':'openSch(\''+x.id+'\')')+'">'+(x.ext?'📅 ':'')+'終日：'+esc(x.title)+'</span>').join(' ') + '</div>' : '') +
+    spanBandHtml(d, S.me) +
     '<section class="panel"><header><h2>'+fmtD(d)+' の予定</h2>' +
       '<span class="hint">移動時間を含めた1日の流れ（📅 はGoogleカレンダー）</span></header>' +
       (list.length ? '<div class="pad"><div class="tl">' + rows + '</div></div>'
@@ -1537,6 +1629,7 @@ function viewWeekMe(){
   document.getElementById('body').innerHTML =
     '<div class="meband">' + avatar(me) + '<div><b>'+esc((me||{}).full||(me||{}).name||'')+'</b>' +
       '<div style="font-size:11.5px;color:var(--tx-3)">'+fmtD(S.wkStart)+' 〜 '+fmtD(days[6])+'</div></div></div>' +
+    spanWeekHtml(days, S.me) +
     days.map(d => {
       const list = dayEvents(d).filter(e => e.who.includes(S.me)).sort((a,b)=>toMin(a.start)-toMin(b.start));
       const off = DB.atd.find(a => a.date===d && a.who===S.me && a.type!=='出勤');
@@ -1747,9 +1840,170 @@ function viewWeek(){
         '<button class="btn sm gh" style="width:100%;color:var(--tx-3)" onclick="openSch(null,null,\''+d+'\',\''+s.id+'\')">＋</button></td>';
     }).join('') + '</tr>').join('');
   document.getElementById('body').innerHTML =
+    spanWeekHtml(days) +
     '<section class="panel"><header><h2>週間予定</h2>' +
     '<span class="hint">オレンジの列が今日／⇄ は移動時間の設定あり</span></header>' +
     '<div class="wk"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></section>';
+}
+
+/* ============================================================
+   月間工程表（長い現場を期間で登録し、毎日の予定入力をなくす）
+   ============================================================ */
+const mdStr = d => d.slice(5).replace('-','/');
+/* 日のボード・担当者別ボードの上に出す「この日の工事」の帯 */
+function spanBandHtml(d, who){
+  const list = spansOn(d, who);
+  if(!list.length) return '';
+  return '<section class="panel"><header><h2>この日の工事（月間工程表より）</h2>' +
+    '<span class="hint">期間で登録された長い現場です。毎日の予定を入れる必要はありません</span>' +
+    '<div class="sp"></div><button class="btn sm" onclick="go(\'gantt\')">月間工程表を開く</button></header>' +
+    '<div class="band">' + list.map(p => {
+      const c = spanColor(p);
+      const dn = Math.round((parseD(d) - parseD(p.start)) / 86400000) + 1;
+      return '<div class="bandrow" style="border-left-color:'+c+'" onclick="openSpan(\''+p.id+'\')" title="タップして編集">' +
+        '<b>'+esc(p.title)+'</b>' +
+        '<span class="mt">'+esc(whoNames(p.who) || '担当未設定')+'</span>' +
+        '<span class="sp"></span>' +
+        '<span class="mt">'+mdStr(p.start)+' – '+mdStr(spanEnd(p))+'　'+dn+'/'+spanDays(p)+'日目</span></div>';
+    }).join('') + '</div></section>';
+}
+/* 週間予定の上に出す帯（1週間ぶんの横棒） */
+function spanWeekHtml(days, who){
+  const from = days[0], to = days[days.length-1];
+  const list = spansInRange(from, to).filter(p => !who || (p.who||[]).includes(who));
+  if(!list.length) return '';
+  const t0 = today();
+  const head = '<tr><th>工事（期間）</th>' + days.map(d => {
+    const dd = parseD(d), w = dd.getDay();
+    return '<th class="'+(d===t0?'tdy ':'')+(w===0?'sun':w===6?'sat':'')+'">'+(dd.getMonth()+1)+'/'+dd.getDate()+'<small>'+WD[w]+'</small></th>';
+  }).join('') + '</tr>';
+  const body = list.map(p => spanRowHtml(p, days, from, to, t0)).join('');
+  return '<section class="panel"><header><h2>この週の工事（月間工程表より）</h2>' +
+    '<span class="hint">帯をタップで編集／毎日の予定入力は不要です</span>' +
+    '<div class="sp"></div><button class="btn sm" onclick="go(\'gantt\')">月間工程表を開く</button></header>' +
+    '<div class="mg"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></section>';
+}
+/* 工程表の1行（左に件名・担当、右に期間の帯） */
+function spanRowHtml(p, days, from, to, t0){
+  const n = days.length;
+  const s0 = p.start < from ? from : p.start;
+  const e0 = spanEnd(p) > to ? to : spanEnd(p);
+  const i0 = days.indexOf(s0), i1 = days.indexOf(e0);
+  const cut = (p.start < from ? ' lcut' : '') + (spanEnd(p) > to ? ' rcut' : '');
+  let cells = '';
+  for(let i=0;i<i0;i++) cells += '<td class="dcell'+(days[i]===t0?' tdy':'')+'"></td>';
+  cells += '<td class="dcell" colspan="'+(i1-i0+1)+'">' +
+    '<div class="gb'+cut+'" style="background:'+spanColor(p)+'" onclick="openSpan(\''+p.id+'\')" ' +
+    'title="'+esc(p.title)+' / '+mdStr(p.start)+'–'+mdStr(spanEnd(p))+' / '+esc(whoNames(p.who))+'">' +
+    (p.start < from ? '‹ ' : '') + esc(p.title) +
+    (p.who && p.who.length ? '　'+esc(whoNames(p.who)) : '') + (spanEnd(p) > to ? ' ›' : '') + '</div></td>';
+  for(let i=i1+1;i<n;i++) cells += '<td class="dcell'+(days[i]===t0?' tdy':'')+'"></td>';
+  return '<tr><td><span class="nm">'+esc(p.title)+'</span>' +
+    '<span class="sb">'+esc(whoNames(p.who) || '担当未設定')+'</span>' +
+    '<span class="sb">'+mdStr(p.start)+' – '+mdStr(spanEnd(p))+'（'+spanDays(p)+'日間）</span></td>' + cells + '</tr>';
+}
+function viewGantt(){
+  const [y, m] = S.month.split('-').map(Number);
+  const n = new Date(y, m, 0).getDate();
+  const days = []; for(let i=1;i<=n;i++) days.push(S.month+'-'+pad(i));
+  const from = days[0], to = days[n-1], t0 = today();
+  const all  = spansInRange(from, to);
+  const list = isMe() ? all.filter(p => (p.who||[]).includes(S.me)) : all;
+  const head = '<tr><th>件名 / 担当者</th>' + days.map(d => {
+    const dd = parseD(d), w = dd.getDay();
+    return '<th class="'+(d===t0?'tdy ':'')+(w===0?'sun':w===6?'sat':'')+'">'+dd.getDate()+'<small>'+WD[w]+'</small></th>';
+  }).join('') + '</tr>';
+  const body = list.map(p => spanRowHtml(p, days, from, to, t0)).join('');
+  const nowDo = liveSpans().filter(p => spanOn(p, t0)).length;
+  const soon  = liveSpans().filter(p => p.start > t0 && p.start <= addD(t0, 14)).length;
+  document.getElementById('body').innerHTML =
+    syncCard() +
+    '<div class="stats">' +
+      stat('この月の工事', list.length, '件', 'var(--info)') +
+      stat('進行中（今日）', nowDo, '件', nowDo?'var(--ok)':'var(--tx-3)') +
+      stat('2週間以内に着工', soon, '件', soon?'var(--accent)':'var(--ok)') +
+    '</div>' +
+    '<section class="panel"><header><h2>月間工程表</h2>' +
+      '<span class="hint">件名と担当者（複数可）を期間で登録します。帯をタップで編集</span>' +
+      '<div class="sp"></div><button class="btn sm pri" onclick="openSpan()">＋ 工事を追加</button></header>' +
+      (list.length ? '<div class="mg"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'
+        : '<div class="empty">この月に登録された工事はありません。右上の「＋ 工事を追加」から登録してください</div>') +
+    '</section>' +
+    '<section class="panel"><header><h2>登録されている工事の一覧</h2>' +
+      '<span class="hint">期間が終わったものも含めて表示します</span></header>' +
+      (liveSpans().length ? '<div class="pad">' + liveSpans().slice().sort((a,b)=>b.start.localeCompare(a.start)).map(p => {
+        const st = spanEnd(p) < t0 ? ['完了','g'] : (p.start > t0 ? ['着工前','b'] : ['進行中','o']);
+        return '<div class="todo rowlink2" onclick="openSpan(\''+p.id+'\')"><div class="bd">' +
+          '<div class="ttl">'+esc(p.title)+'</div><div class="meta">' +
+          '<span class="tag '+st[1]+'">'+st[0]+'</span>' +
+          '<span class="tag n" style="background:'+spanColor(p)+'22;color:'+spanColor(p)+'">'+esc(p.cat||'工事')+'</span>' +
+          '<span>'+esc(whoNames(p.who) || '担当未設定')+'</span>' +
+          '<span>'+p.start.replace(/-/g,'/')+' – '+spanEnd(p).replace(/-/g,'/')+'（'+spanDays(p)+'日間）</span>' +
+          '</div></div></div>';
+      }).join('') + '</div>' : '<div class="empty">まだ登録がありません</div>') +
+    '</section>';
+}
+/* ---------- 工事モーダル ---------- */
+let SP = null;
+function openSpan(id, date){
+  if(id){ const p = spanById(id); if(!p) return; SP = Object.assign({}, p); SP.who = (p.who||[]).slice(); }
+  else SP = {id:'', title:'', who: isMe()?[S.me]:[], start: date || today(), end: date || today(),
+             cat:'工事', jobId:'', note:'', created: today()};
+  drawSpan();
+}
+function spWho(id){ SP.who = togWho(SP.who, id); drawSpan(); }
+function spSet(k, v){ SP[k] = v; if(k === 'start' && SP.end < v) SP.end = v; drawSpan(); }
+function drawSpan(){
+  const dys = spanDays({start: SP.start, end: SP.end});
+  shell(SP.id ? '工事を編集' : '工事を追加',
+    '<div class="hintline">ここで登録した工事は、<b>期間中ずっと毎日の予定と週間予定の上に表示</b>されます。' +
+    '長い現場の担当者が、毎日おなじ予定を入力する必要がなくなります。</div>' +
+    f('件名','<input value="'+esc(SP.title)+'" placeholder="例：○○様邸 浴室改修工事" oninput="SP.title=this.value">') +
+    '<div class="sec"><h4>担当者（複数選べます）<span class="sp"></span>' +
+      '<span class="hintline">'+(SP.who.length ? esc(whoNames(SP.who))+'（'+SP.who.length+'名）' : '未割当')+'</span></h4>' +
+      whoPicker(SP.who, 'spWho') + '</div>' +
+    '<div class="grid2">' +
+      f('開始日','<input type="date" value="'+esc(SP.start)+'" onchange="spSet(\'start\',this.value)">') +
+      f('終了日','<input type="date" value="'+esc(SP.end)+'" onchange="spSet(\'end\',this.value)">') +
+    '</div>' +
+    '<div class="hintline">期間：'+mdStr(SP.start)+' – '+mdStr(spanEnd(SP))+'（<b>'+dys+'日間</b>）</div>' +
+    f('区分（帯の色）','<div class="pick plain">' + Object.keys(CATS).map(k =>
+      '<button type="button" class="'+(SP.cat===k?'on':'')+'" onclick="SP.cat=\''+k+'\';drawSpan()" ' +
+      'style="'+(SP.cat===k?'border-color:'+CATS[k]+';background:'+CATS[k]+';color:#fff':'')+'">'+k+'</button>').join('') + '</div>') +
+    f('関連する案件（任意）','<select onchange="SP.jobId=this.value">' +
+      '<option value="">（なし）</option>' + liveJobs().map(j =>
+      '<option value="'+j.id+'"'+(SP.jobId===j.id?' selected':'')+'>'+esc(j.customer+' '+j.title)+'</option>').join('') + '</select>') +
+    f('メモ','<textarea style="min-height:66px" oninput="SP.note=this.value">'+esc(SP.note||'')+'</textarea>'),
+    (SP.id ? '<button class="btn dg" onclick="delSpan()">削除</button>' : '') +
+    '<div class="sp"></div><button class="btn" onclick="SP=null;closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="saveSpan()">保存</button>');
+}
+function saveSpan(){
+  if(!SP.title.trim()){ alert('件名を入力してください'); return; }
+  if(!SP.start){ alert('開始日を入力してください'); return; }
+  if(SP.end && SP.end < SP.start){ alert('終了日は開始日より後にしてください'); return; }
+  DB.spans = DB.spans || [];
+  const p = Object.assign({}, SP); p.title = p.title.trim(); p.end = p.end || p.start;
+  if(p.id){
+    const old = spanById(p.id); const was = old ? (old.start+'〜'+spanEnd(old)+' '+whoNames(old.who)) : '';
+    const i = DB.spans.findIndex(x => x.id === p.id);
+    DB.spans[i] = Object.assign(DB.spans[i], p);
+    logIt('工事', p.id, p.title, '工事を変更', was, p.start+'〜'+spanEnd(p)+' '+whoNames(p.who));
+  }else{
+    p.id = uid('sp'); p.created = today();
+    DB.spans.push(p);
+    logIt('工事', p.id, p.title, '工事を登録', '', p.start+'〜'+spanEnd(p)+' '+whoNames(p.who));
+  }
+  save(); SP = null; closeM(); render(); toast('保存しました');
+}
+function delSpan(){
+  if(!SP || !SP.id) return;
+  if(!canDel('sch') && !isAdmin()){ alert('工事の削除は'+adminNames()+'のみ行えます。'); return; }
+  if(!confirm('この工事を削除します。よろしいですか？\n\n'+SP.title)) return;
+  const p = spanById(SP.id); if(!p) return;
+  logIt('工事', p.id, p.title, '工事を削除', p.start+'〜'+spanEnd(p), '削除');
+  DB.spans = DB.spans.filter(x => x.id !== p.id);
+  save(); SP = null; closeM(); render(); toast('削除しました');
 }
 
 function setStage(jobId, k){
@@ -2378,6 +2632,7 @@ function viewAdmin(){
 }
 function viewCfg(){
   const c = DB.cfg;
+  DB.staff.sort((a,b) => stOrd(a) - stOrd(b));
   document.getElementById('body').innerHTML =
     syncCard() +
     '<section class="panel"><header><h2>移動時間の設定</h2></header><div class="pad" style="display:flex;flex-direction:column;gap:14px">' +
@@ -2431,8 +2686,11 @@ function viewCfg(){
 
     '<section class="panel"><header><h2>担当者</h2><div class="sp"></div>' +
       '<button class="btn sm" onclick="addStaff()">＋ 追加</button></header>' +
-      '<table><thead><tr><th>名前（表示）</th><th>氏名</th><th>メールアドレス</th><th>色</th><th>状態</th><th></th></tr></thead><tbody>' +
+      '<table><thead><tr><th>並び</th><th>名前（表示）</th><th>氏名</th><th>メールアドレス</th><th>色</th><th>状態</th><th></th></tr></thead><tbody>' +
       DB.staff.map((s,i) => '<tr>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn sm gh" onclick="moveStaff(\''+s.id+'\',-1)"'+(i===0?' disabled':'')+' title="上へ">▲</button> ' +
+          '<button class="btn sm gh" onclick="moveStaff(\''+s.id+'\',1)"'+(i===DB.staff.length-1?' disabled':'')+' title="下へ">▼</button></td>' +
         '<td><input value="'+esc(s.name)+'" onchange="DB.staff['+i+'].name=this.value;save();render()" style="width:80px;padding:5px;border:1px solid var(--line);border-radius:7px"></td>' +
         '<td><input value="'+esc(s.full||'')+'" onchange="DB.staff['+i+'].full=this.value;save()" style="width:110px;padding:5px;border:1px solid var(--line);border-radius:7px"></td>' +
         '<td><input value="'+esc(s.mail||'')+'" placeholder="xxx@example.com" onchange="DB.staff['+i+'].mail=this.value.trim();save()" style="width:190px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:12px"></td>' +
@@ -2648,7 +2906,20 @@ function renderTT(){
       '<button class="btn sm dg" onclick="DB.cfg.travel.splice('+i+',1);save();renderTT()">×</button></div>').join('') + '</div>';
 }
 function addTT(){ DB.cfg.travel.push({kw:'', m:20}); save(); renderTT(); }
-function addStaff(){ DB.staff.push({id:uid('s'), name:'新規', full:'', role:'', color:'#6b7280', active:true}); save(); render(); }
+function addStaff(){
+  const mx = DB.staff.reduce((a,s) => Math.max(a, stOrd(s) === 999 ? 0 : s.ord), -1);
+  DB.staff.push({id:uid('s'), name:'新規', full:'', role:'', color:'#6b7280', active:true, ord: mx + 1});
+  save(); render();
+}
+/* 並び順の入れ替え（設定画面） */
+function moveStaff(id, dir){
+  const list = sortStaff(DB.staff), i = list.findIndex(s => s.id === id), j = i + dir;
+  if(i < 0 || j < 0 || j >= list.length) return;
+  const a = list[i], b = list[j], t = stOrd(a);
+  a.ord = stOrd(b); b.ord = (t === 999 ? stOrd(b) + 1 : t);
+  DB.staff.sort((x,y) => stOrd(x) - stOrd(y));
+  save(); render();
+}
 function delStaff(id){
   if(!isAdmin()){ alert('担当者を消せるのは管理者（' + adminNames() + '）だけです。'); return; }
   if(!confirm('この担当者を削除します。予定・ToDoからも外れます。')) return;
