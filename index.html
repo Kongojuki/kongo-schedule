@@ -454,6 +454,13 @@ const uid = p => p + '_' + Math.random().toString(36).slice(2, 9);
 const SEED_U = '2020-01-01T00:00:00.000Z';
 /* 担当者の並び順（事務所を先頭に） */
 const STAFF_ORD = ['s6','s1','s2','s3','s4','s5','s7','s8'];
+/* 並び順。ord が無い（古い端末から同期されて消えた）ときは既定の順番で補う */
+const stOrd = s => {
+  if(typeof s.ord === 'number') return s.ord;
+  const i = STAFF_ORD.indexOf(s.id);
+  return i >= 0 ? i : 999;
+};
+const sortStaff = list => list.slice().sort((a,b) => stOrd(a) - stOrd(b));
 const pad = n => String(n).padStart(2, '0');
 const iso = d => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
 const today = () => iso(new Date());
@@ -600,23 +607,19 @@ function load(){
     useBuiltin_(d);
     initSeq(d);
     d.jobs.forEach(j => { if(j.del === undefined) j.del = false; });
-    if(d.staffRev !== 'r5'){
-      d.staffRev = 'r5';
+    /* 担当者の追加と並び順（何度読み込んでも同じ結果になるように） */
+    {
       const kw = d.staff.find(x => x.id === 's6');
       if(kw && kw.name === '川崎'){ kw.name = '事務所'; kw._u = nowISO(); }
       const k = d.staff.find(x => x.id === 's1');
       if(k && k.full === '木村 大吾'){ k.full = ''; k._u = nowISO(); }
       if(!d.staff.some(x => x.id === 's7'))
-        d.staff.push({id:'s7', name:'今村', full:'', role:'', mail:'', color:'#0ea5e9', active:true, _u:nowISO()});
+        d.staff.push({id:'s7', name:'今村', full:'', role:'', mail:'', color:'#0ea5e9', active:true, ord:6, _u:nowISO()});
       if(!d.staff.some(x => x.id === 's8'))
-        d.staff.push({id:'s8', name:'川崎', full:'', role:'', mail:'', color:'#b45309', active:true, _u:nowISO()});
-      /* 並び順：事務所を先頭に、あとは従来どおり */
-      STAFF_ORD.forEach((id, i) => { const s = d.staff.find(x => x.id === id); if(s && s.ord !== i){ s.ord = i; s._u = nowISO(); } });
-      let n = STAFF_ORD.length;
-      d.staff.forEach(s => { if(typeof s.ord !== 'number'){ s.ord = n++; s._u = nowISO(); } });
-      d.staff.sort((a,b) => a.ord - b.ord);
+        d.staff.push({id:'s8', name:'川崎', full:'', role:'', mail:'', color:'#b45309', active:true, ord:7, _u:nowISO()});
+      d.staff.sort((a,b) => stOrd(a) - stOrd(b));
+      d.staffRev = 'r5';
     }
-    d.staff.forEach((s,i) => { if(typeof s.ord !== 'number') s.ord = 100 + i; });
     /* 旧形式（単一担当）からの移行 */
     d.sch.forEach(e => { if(!Array.isArray(e.who)) e.who = e.staffId ? [e.staffId] : []; });
     d.todos.forEach(t => { if(!Array.isArray(t.who)) t.who = t.staffId ? [t.staffId] : []; if(!Array.isArray(t.subs)) t.subs = [];
@@ -714,8 +717,6 @@ function missingCodes(){
   return out;
 }
 const codeStr = n => 'R-' + String(1000 + n).slice(1);
-const stOrd = s => (typeof s.ord === 'number' ? s.ord : 999);
-const sortStaff = list => list.slice().sort((a,b) => stOrd(a) - stOrd(b));
 const activeStaff = () => sortStaff(DB.staff.filter(s => s.active !== false));
 const catColor = c => CATS[c] || '#9aa3ae';
 
@@ -2907,17 +2908,19 @@ function renderTT(){
 }
 function addTT(){ DB.cfg.travel.push({kw:'', m:20}); save(); renderTT(); }
 function addStaff(){
-  const mx = DB.staff.reduce((a,s) => Math.max(a, stOrd(s) === 999 ? 0 : s.ord), -1);
+  const mx = DB.staff.reduce((a,s) => { const n = stOrd(s); return n < 999 ? Math.max(a, n) : a; }, -1);
   DB.staff.push({id:uid('s'), name:'新規', full:'', role:'', color:'#6b7280', active:true, ord: mx + 1});
   save(); render();
 }
-/* 並び順の入れ替え（設定画面） */
+/* 並び順の入れ替え（設定画面の▲▼） */
 function moveStaff(id, dir){
-  const list = sortStaff(DB.staff), i = list.findIndex(s => s.id === id), j = i + dir;
+  const list = sortStaff(DB.staff);
+  const i = list.findIndex(s => s.id === id), j = i + dir;
   if(i < 0 || j < 0 || j >= list.length) return;
-  const a = list[i], b = list[j], t = stOrd(a);
-  a.ord = stOrd(b); b.ord = (t === 999 ? stOrd(b) + 1 : t);
+  list.forEach((s,k) => { s.ord = k; });   /* 全員に番号を振り直してから入れ替える */
+  list[i].ord = j; list[j].ord = i;
   DB.staff.sort((x,y) => stOrd(x) - stOrd(y));
+  logIt('設定', 'staffOrder', '担当者の並び順', '並び順', '', DB.staff.map(s=>s.name).join('・'));
   save(); render();
 }
 function delStaff(id){
