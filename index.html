@@ -627,6 +627,10 @@ function logIt(type, targetId, title, field, from, to){
 const staffById = id => DB.staff.find(s => s.id === id);
 const jobById   = id => DB.jobs.find(j => j.id === id);
 const liveJobs  = () => DB.jobs.filter(j => !j.del);       /* 削除済みを除いた案件 */
+const queueJobs = () => DB.jobs.filter(j => !j.del && !j.todoAt);  /* 受付一覧に出す案件（ToDoへ移したものは外す） */
+const todoJobs  = () => DB.jobs.filter(j => !j.del && j.todoAt);
+const DELETED_SHOW_DAYS = 7;                               /* 通常ページで削除済みを見せる日数 */
+const recentDel = () => delJobs().filter(j => daysAgo(j.delAt) < DELETED_SHOW_DAYS);
 const delJobs   = () => DB.jobs.filter(j => j.del);
 const reqJobs   = () => DB.jobs.filter(j => !j.del && j.delReq);
 /* 受付№：欠番があれば「消された形跡」としてすぐ分かる */
@@ -1146,9 +1150,10 @@ const VIEWS = [
   {id:'sales', label:'売掛会議',     ic:'¥', sub:'未請求・未入金・現金の点検'},
   {id:'report',label:'日報',         ic:'▭', sub:'作業実績の記録'},
   {id:'atd',   label:'勤怠・休暇',   ic:'☺', sub:'出勤と休暇の管理'},
-  {id:'cfg',   label:'設定',         ic:'⚙', sub:'担当者・移動時間・テンプレート'}
+  {id:'cfg',   label:'設定',         ic:'⚙', sub:'担当者・移動時間・テンプレート'},
+  {id:'admin', label:'管理',         ic:'🔒', sub:'削除済み・履歴の確認（管理者のみ）'}
 ];
-const S = { view:'board', mode:'all', me:'', date: today(), month: today().slice(0,7), wkStart: null, todoF:{cat:'all', scope:'all', who:'all', tab:'open'}, jobF:{st:'all', q:''}, sideOpen:false, vmenu:false };
+const S = { view:'board', mode:'all', me:'', date: today(), month: today().slice(0,7), wkStart: null, todoF:{cat:'all', scope:'all', who:'all', tab:'open'}, jobF:{st:'all', q:''}, admQ:'', sideOpen:false, vmenu:false };
 S.wkStart = addD(S.date, -((parseD(S.date).getDay()+6)%7));
 S.mode = DB.cfg.mode || 'all';
 S.me   = DB.cfg.me || (activeStaff()[0]||{}).id || '';
@@ -1204,7 +1209,7 @@ function render(){
         '<select onchange="setMe(this.value)">' + activeStaff().map(s =>
           '<option value="'+s.id+'"'+(S.me===s.id?' selected':'')+'>'+esc(s.full||s.name)+'</option>').join('') +
         '</select></div>' : '') +
-      '<nav class="nav">' + VIEWS.map(x =>
+      '<nav class="nav">' + VIEWS.filter(x => x.id !== 'admin' || isAdmin()).map(x =>
         '<button class="'+(x.id===S.view?'on':'')+'" onclick="go(\''+x.id+'\')">' +
           '<span class="ic">'+x.ic+'</span>'+x.label +
           (x.id==='jobs' && openJobs ? '<span class="badge">'+openJobs+'</span>' : '') +
@@ -1217,7 +1222,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v2.8</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v2.9</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1235,7 +1240,7 @@ function render(){
       '<div class="body" id="body"></div>' +
     '</div>' +
   '</div>';
-  ({board:viewBoard, week:viewWeek, jobs:viewJobs, todo:viewTodo, sales:viewSales, report:viewReport, atd:viewAtd, cfg:viewCfg}[S.view] || viewBoard)();
+  ({board:viewBoard, week:viewWeek, jobs:viewJobs, todo:viewTodo, sales:viewSales, report:viewReport, atd:viewAtd, cfg:viewCfg, admin:viewAdmin}[S.view] || viewBoard)();
   paintSync();
   try{ paintHint(); }catch(e){}
 }
@@ -1346,11 +1351,11 @@ function jobStaff(j){
 
 /* 自分が関わる案件（予定 or ToDo に担当として入っている） */
 function visibleJobs(){
-  if(!isMe()) return liveJobs();
+  if(!isMe()) return queueJobs();
   const ids = new Set();
   DB.sch.forEach(e => { if(e.who.includes(S.me) && e.jobId) ids.add(e.jobId); });
   DB.todos.forEach(t => { if(!t.del && (t.who||[]).includes(S.me) && t.jobId) ids.add(t.jobId); });
-  return liveJobs().filter(j => ids.has(j.id) || (j.owners||[]).includes(S.me));
+  return queueJobs().filter(j => ids.has(j.id) || (j.owners||[]).includes(S.me));
 }
 
 /* ============================================================
@@ -1361,7 +1366,7 @@ function viewBoard(){
   const d = S.date;
   const day = dayEvents(d);
   const dup = conflicts(d);
-  const unassigned = liveJobs().filter(j => j.status!=='完了' && !DB.sch.some(e => e.jobId === j.id));
+  const unassigned = queueJobs().filter(j => j.status!=='完了' && !DB.sch.some(e => e.jobId === j.id));
   const urgent = day.filter(e => { const j = jobById(e.jobId); return j && j.prio === '至急'; }).length;
   const working = new Set(); day.forEach(e => e.who.forEach(w => working.add(w)));
   const myTodo = liveTodos().filter(t => t.due && t.due <= d);
@@ -1832,18 +1837,41 @@ function jobGuardHtml(){
         '<div class="acts"><button class="btn sm" onclick="openJob(\''+j.id+'\')">内容を見る</button>' +
         (isAdmin() ? '<button class="btn sm dg" onclick="dropReq(\''+j.id+'\')">依頼を却下</button>' : '') +
         '</div></div>').join('') + '</div></section>';
-  if(dels.length && isAdmin())
-    h += '<section class="panel"><header><h2>削除済みの案件（'+dels.length+'件）</h2>' +
-      '<span class="hint">消えていません。いつでも元に戻せます</span></header><div class="pad">' +
-      dels.slice().reverse().map(j => '<div class="todo"><div class="bd"><div class="ttl">' +
-        '<code style="font-size:11.5px">'+esc(j.code)+'</code> '+esc(j.customer)+' '+esc(j.title)+'</div>' +
-        '<div class="meta"><span class="tag r">'+esc(j.delByName||'')+' が削除</span>' +
-        '<span class="tag n">'+esc(jStamp(j.delAt))+'</span>' +
-        '<span class="tag n">理由：'+esc(j.delWhy||'')+'</span>' +
-        (balOf(j) > 0 ? '<span class="tag r">未入金 '+money(balOf(j))+'</span>' : '') + '</div></div>' +
-        '<div class="acts"><button class="btn sm pri" onclick="restoreJob(\''+j.id+'\')">元に戻す</button></div></div>').join('') +
-      '</div></section>';
   return h;
+}
+/* 削除済み案件の一覧（通常ページ＝7日以内／管理ページ＝全期間） */
+function delListHtml(all){
+  const dels = (all ? delJobs() : recentDel()).slice().reverse();
+  const title = all ? '削除済みの案件（全期間・'+dels.length+'件）'
+                    : '削除済みの案件（直近'+DELETED_SHOW_DAYS+'日・'+dels.length+'件）';
+  const hint  = all ? '消えていません。いつでも元に戻せます'
+                    : DELETED_SHOW_DAYS+'日を過ぎたものは、管理者の「管理」ページで確認できます';
+  return '<section class="panel"><header><h2>'+title+'</h2><span class="hint">'+hint+'</span></header>' +
+    (dels.length ? '<div class="pad">' + dels.map(j => '<div class="todo"><div class="bd"><div class="ttl">' +
+      '<code style="font-size:11.5px">'+esc(j.code)+'</code> '+esc(j.customer)+' '+esc(j.title)+'</div>' +
+      '<div class="meta"><span class="tag r">'+esc(j.delByName||'')+' が削除</span>' +
+      '<span class="tag n">'+esc(jStamp(j.delAt))+'（'+daysAgo(j.delAt)+'日前）</span>' +
+      '<span class="tag n">理由：'+esc(j.delWhy||'')+'</span>' +
+      (balOf(j) > 0 ? '<span class="tag r">未入金 '+money(balOf(j))+'</span>' : '') + '</div></div>' +
+      '<div class="acts">' + (isAdmin() ? '<button class="btn sm pri" onclick="restoreJob(\''+j.id+'\')">元に戻す</button>' : '') +
+      '</div></div>').join('') + '</div>'
+      : '<div class="empty">'+(all?'削除済みの案件はありません':'この'+DELETED_SHOW_DAYS+'日間に削除された案件はありません')+'</div>') +
+    '</section>';
+}
+function jobsFooterHtml(){
+  const mv = todoJobs().slice().reverse();
+  let h = '';
+  if(mv.length)
+    h += '<section class="panel"><header><h2>ToDoへ移した受付（'+mv.length+'件）</h2>' +
+      '<span class="hint">担当者のToDoに移っています。金額・請求・入金の管理はそのまま残ります</span></header>' +
+      '<div class="pad">' + mv.map(j => '<div class="todo"><div class="bd"><div class="ttl">' +
+        '<code style="font-size:11.5px">'+esc(j.code)+'</code> '+esc(j.customer)+' '+esc(j.title)+'</div>' +
+        '<div class="meta"><span class="tag g">'+esc(j.todoByName||'')+' が移動</span>' +
+        '<span class="tag n">'+esc(jStamp(j.todoAt))+'</span>' +
+        (balOf(j) > 0 ? '<span class="tag r">未入金 '+money(balOf(j))+'</span>' : '') + '</div></div>' +
+        '<div class="acts"><button class="btn sm" onclick="openJob(\''+j.id+'\')">内容を見る</button></div></div>').join('') +
+      '</div></section>';
+  return h + delListHtml(false);
 }
 function viewJobs(keepFocus){
   let list = visibleJobs().slice().reverse();
@@ -1879,14 +1907,15 @@ function viewJobs(keepFocus){
           STAGE_KEYS.map(k => '<option value="'+k+'"'+(S.jobF.st===k?' selected':'')+'>'+k+'</option>').join('') +
         '</select>' +
       '</div></header>' +
-      '<div class="hintline" style="padding:0 16px 8px">行をタップすると内容が開きます</div>' +
+      '<div class="hintline" style="padding:0 16px 8px">行をタップすると内容が開きます。ToDoに移した受付は、このページの一番下にまとめています。</div>' +
       (list.length ? '<div style="overflow-x:auto"><table style="min-width:1080px"><thead><tr>' +
         '<th>受付№</th><th>顧客・現場</th><th>内容</th><th>工程</th><th>責任者</th>' +
         '<th style="text-align:right">見積</th><th style="text-align:right">請求</th><th style="text-align:right">入金残</th>' +
         '<th>状況</th><th></th></tr></thead><tbody>' +
         list.map(jobRow).join('') + '</tbody></table></div>'
         : '<div class="empty">該当する案件がありません</div>') +
-    '</section>';
+    '</section>' +
+    jobsFooterHtml();
   if(keepFocus){ const i = document.getElementById('jq'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 }
 function jobRow(j){
@@ -2307,6 +2336,46 @@ function viewAtd(){
 /* ============================================================
    設定
    ============================================================ */
+/* 管理者ページ（木村さんだけが開けます） */
+function viewAdmin(){
+  if(!isAdmin()){
+    document.getElementById('body').innerHTML =
+      '<section class="panel"><header><h2>管理</h2></header>' +
+      '<div class="pad hintline">このページは管理者（'+esc(adminNames())+'）だけが開けます。</div></section>';
+    return;
+  }
+  const logs = (DB.log||[]).slice().reverse();
+  const q = (S.admQ||'').trim();
+  const shown = (q ? logs.filter(l => (l.title+l.field+(l.byName||'')+(l.to||'')+(l.from||'')).indexOf(q) >= 0) : logs).slice(0, 300);
+  document.getElementById('body').innerHTML =
+    '<div class="kpi">' +
+      stat('削除済みの案件', delJobs().length, '件', delJobs().length?'var(--warn)':'var(--ok)') +
+      stat('削除の依頼', reqJobs().length, '件', reqJobs().length?'var(--danger)':'var(--ok)') +
+      stat('受付№の欠番', missingCodes().length, '件', missingCodes().length?'var(--danger)':'var(--ok)') +
+      stat('ToDoへ移した受付', todoJobs().length, '件', 'var(--info)') +
+    '</div>' +
+    jobGuardHtml() +
+    delListHtml(true) +
+    '<section class="panel"><header><h2>変更の履歴</h2>' +
+      '<span class="hint">誰がいつ何を変えたか（新しい順・最大300件）</span><div class="sp"></div>' +
+      '<div class="filters"><input id="admq" placeholder="顧客名・操作者などで検索" value="'+esc(q)+'" ' +
+      'oninput="S.admQ=this.value;viewAdmin();setTimeout(()=>{const i=document.getElementById(\'admq\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},0)"></div></header>' +
+      (shown.length ? '<div style="overflow-x:auto"><table style="min-width:860px"><thead><tr>' +
+        '<th>日時</th><th>操作者</th><th>種類</th><th>対象</th><th>内容</th><th>変更前</th><th>変更後</th></tr></thead><tbody>' +
+        shown.map(l => '<tr><td style="font-size:11.5px;white-space:nowrap">'+esc(jDay(l.at))+' '+esc(jTime(l.at))+'</td>' +
+          '<td>'+esc(l.byName||'')+'</td><td>'+esc(l.type||'')+'</td>' +
+          '<td>'+esc(l.title||'')+'</td><td>'+esc(l.field||'')+'</td>' +
+          '<td style="color:var(--tx-3)">'+esc(l.from||'')+'</td><td><b>'+esc(l.to||'')+'</b></td></tr>').join('') +
+        '</tbody></table></div>'
+        : '<div class="empty">該当する履歴がありません</div>') +
+    '</section>' +
+    '<section class="panel"><header><h2>権限の設定</h2></header><div class="pad">' +
+      '<div class="hintline">管理者：<b>'+esc(adminNames())+'</b>　／　削除を管理者だけに制限：' +
+      [['jobs','案件'],['todos','ToDo'],['pays','入金'],['sch','予定']].map(x =>
+        x[1]+'<b>'+(lockOn(x[0])?'あり':'なし')+'</b>').join('　') + '</div>' +
+      '<button class="btn" onclick="go(\'cfg\')">設定ページで変更する</button>' +
+    '</div></section>';
+}
 function viewCfg(){
   const c = DB.cfg;
   document.getElementById('body').innerHTML =
@@ -2663,6 +2732,9 @@ function drawJob(){
       '<button class="'+(tab===t[0]?'on':'')+'" onclick="M._tab=\''+t[0]+'\';drawJob()">'+t[1]+'</button>').join('') + '</div>' +
     (tab==='info' ? jobTabInfo() : tab==='money' ? jobTabMoney(paid, bal) : jobTabNote()),
     (M.id ? '<button class="btn dg" onclick="delJob()">'+(canDel('jobs')?'削除':'削除を依頼')+'</button>' : '') +
+    (M.id ? (M.todoAt
+      ? '<button class="btn" onclick="backToQueue()">受付一覧に戻す</button>'
+      : '<button class="btn" onclick="openToTodo()">ToDoに移す</button>') : '') +
     '<div class="sp"></div><button class="btn" onclick="askClose()">キャンセル</button>' +
     '<button class="btn pri" onclick="saveJob()">保存</button>', true);
 }
@@ -2867,6 +2939,53 @@ function reqDelJob(){
   j.delReq = {by: actor(), byName: actorName(), at: nowISO(), why: String(why).trim()};
   logIt('案件', j.id, j.customer+' '+j.title, '削除の依頼', j.status, String(why).trim());
   save(); closeM(); render(); toast('管理者に削除を依頼しました');
+}
+/* 受付・案件を、担当者のToDoに移す（移したら受付一覧からは外れます） */
+let TT = null;
+function openToTodo(){
+  const j = DB.jobs.find(x => x.id === M.id); if(!j) return;
+  TT = {jobId: j.id, who: (j.owners||[]).slice(), due: today(), prio: (j.prio==='至急'?'高':'中'),
+        cat: '', title: (j.customer ? j.customer + ' ' : '') + (j.title || ''), memo: lastNote(j) || ''};
+  drawToTodo();
+}
+function drawToTodo(){
+  shell('ToDoに移す',
+    '<div class="hintline">この受付をToDoに変えて、担当者に渡します。移したあとは<b>受付・案件の一覧には出なくなります</b>' +
+    '（金額・請求・入金の管理はそのまま残ります）。</div>' +
+    f('やること','<input value="'+esc(TT.title)+'" oninput="TT.title=this.value">') +
+    '<div class="sec"><h4>担当者（複数選べます）<span class="sp"></span>' +
+      '<span class="hintline">'+(TT.who.length?esc(whoNames(TT.who))+'（'+TT.who.length+'名）':'未割当')+'</span></h4>' +
+      whoPicker(TT.who, 'ttWho') + '</div>' +
+    '<div class="grid2">' +
+      f('期限','<input type="date" value="'+esc(TT.due)+'" onchange="TT.due=this.value">') +
+      f('重要度','<div class="pick plain">'+['高','中','低'].map(p =>
+        '<button type="button" class="'+(TT.prio===p?'on':'')+'" onclick="TT.prio=\''+p+'\';drawToTodo()">'+p+'</button>').join('')+'</div>') +
+    '</div>' +
+    f('カテゴリー','<div class="pick plain">' +
+      DB.cats.map(c => '<button type="button" class="'+(TT.cat===c.id?'on':'')+'" onclick="TT.cat=\''+c.id+'\';drawToTodo()" ' +
+        'style="'+(TT.cat===c.id?'border-color:'+c.color+';background:'+c.color+';color:#fff':'')+'">'+esc(c.name)+'</button>').join('') + '</div>') +
+    f('メモ','<textarea style="min-height:70px" oninput="TT.memo=this.value">'+esc(TT.memo)+'</textarea>'),
+    '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="doToTodo()">ToDoに移す</button>');
+}
+function ttWho(id){ TT.who = togWho(TT.who, id); drawToTodo(); }
+function doToTodo(){
+  if(!TT.title.trim()){ alert('やることを入力してください'); return; }
+  if(!TT.who.length && !confirm('担当者が未割当です。このまま移しますか？')) return;
+  const j = DB.jobs.find(x => x.id === TT.jobId); if(!j) return;
+  const t = {id: uid('t'), title: TT.title.trim(), scope:'job', jobId: j.id, who: TT.who.slice(),
+             due: TT.due, prio: TT.prio, done:false, cat: TT.cat, memo: TT.memo, subs: [], created: today()};
+  DB.todos.push(t);
+  j.todoAt = nowISO(); j.todoBy = actor(); j.todoByName = actorName(); j.todoIds = (j.todoIds||[]).concat([t.id]);
+  logIt('案件', j.id, j.customer+' '+j.title, 'ToDoへ移動', j.status, whoNames(TT.who) || '未割当');
+  save(); TT = null; closeM(); render();
+  toast('ToDoに移しました（受付一覧からは外れました）', ()=>{ j.todoAt=''; DB.todos = DB.todos.filter(x=>x.id!==t.id); });
+}
+function backToQueue(){
+  const j = DB.jobs.find(x => x.id === M.id); if(!j) return;
+  j.todoAt = ''; j.todoBy = ''; j.todoByName = '';
+  logIt('案件', j.id, j.customer+' '+j.title, '受付一覧に戻す', 'ToDo', j.status);
+  save(); closeM(); render(); toast('受付一覧に戻しました');
 }
 function restoreJob(id){
   const j = DB.jobs.find(x => x.id === id); if(!j) return;
@@ -3461,7 +3580,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '2.8';
+const APP_VER = '2.9';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
