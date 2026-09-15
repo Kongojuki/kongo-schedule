@@ -1124,20 +1124,63 @@ function calcTravel(addr){
 /* ============================================================
    Googleスプレッドシート同期（Apps Script Web App 経由）
    ============================================================ */
+/* Google から JSON 以外（HTML）が返ったときに、原因を日本語で返す */
+function gasErr_(status, txt){
+  const t = String(txt || '');
+  if(/accounts\.google\.com|ServiceLogin|ログイン/.test(t))
+    return 'Googleのログイン画面が返ってきました。Apps Scriptのデプロイ設定で「アクセスできるユーザー」を「全員」にしてください。';
+  if(status === 404)
+    return '同期先が見つかりませんでした（404）。アクセスが集中しているか、デプロイURLが変わった可能性があります。';
+  if(status === 429 || status === 503)
+    return 'Google側が混み合っています（' + status + '）。しばらく待ってからもう一度お試しください。';
+  if(status >= 500)
+    return 'Google側で一時的なエラーが起きています（' + status + '）。しばらく待ってからもう一度お試しください。';
+  return '応答を読み取れませんでした（HTTP ' + status + '）。時間をおいてもう一度お試しください。';
+}
+/* 中身が同じかどうかを見るための「指紋」。並び順が違っても同じになるように並べ替えてから作る */
+function sig_(o){
+  const out = [];
+  COLL.concat(APPEND).forEach(k => {
+    const arr = ((o && o[k]) || []).slice()
+      .sort((a,b) => String((a&&a.id)||'').localeCompare(String((b&&b.id)||'')));
+    out.push(k + '=' + JSON.stringify(arr));
+  });
+  const tb = ((o && o.tomb) || []).filter(t => daysAgo(t.at) < 90)
+    .map(t => t.key + '|' + t.at).sort().join(',');
+  out.push('tomb=' + tb);
+  return out.join('\n');
+}
+const sleep_ = ms => new Promise(r => setTimeout(r, ms));
+
 const Sync = {
   busy:false, status:'', 
   url(){ return (DB.cfg.gasUrl||'').trim(); },
   ready(){ return !!this.url(); },
-  async call(action, body){
+  async call(action, body, ms){
     if(!this.ready()) throw new Error('同期URLが設定されていません');
-    const res = await fetch(this.url(), {
-      method:'POST', redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},   // プリフライトを避ける
-      body: JSON.stringify(Object.assign({action, token: DB.cfg.gasToken||''}, body))
-    });
+    /* 応答が返らないときに永遠に待たない（同期中のまま固まるのを防ぐ） */
+    const ac = (typeof AbortController === 'function') ? new AbortController() : null;
+    const tid = ac ? setTimeout(() => ac.abort(), ms || 30000) : 0;
+    let res;
+    try{
+      res = await fetch(this.url(), {
+        method:'POST', redirect:'follow', signal: ac ? ac.signal : undefined,
+        headers:{'Content-Type':'text/plain;charset=utf-8'},   // プリフライトを避ける
+        body: JSON.stringify(Object.assign({action, token: DB.cfg.gasToken||''}, body))
+      });
+    }catch(e){
+      if(e && e.name === 'AbortError') throw new Error('応答がありません（時間切れ）。電波の良い場所でもう一度お試しください。');
+      throw new Error('インターネットにつながらないようです。');
+    }finally{ if(tid) clearTimeout(tid); }
     const txt = await res.text();
-    let j; try{ j = JSON.parse(txt); }catch(e){ throw new Error('応答が不正です（デプロイ設定をご確認ください）'); }
+    let j; try{ j = JSON.parse(txt); }catch(e){ throw new Error(gasErr_(res.status, txt)); }
     return j;
+  },
+  /* サーバーの更新番号だけを軽く確かめる。古い同期サーバーなら null */
+  async rev(){
+    const r = await this.call('rev', null, 15000);
+    if(r && r.ok && r.rev !== undefined && r.rev !== null) return Number(r.rev) || 0;
+    return null;
   },
   payload(){
     const o = {rev: DB.rev||0, tomb: DB.tomb||[]};
@@ -1191,7 +1234,9 @@ const Sync = {
     SNAP = null;   // 次回 save() で作り直す
   },
   /* Googleカレンダーの予定を取り込む（読み取り専用） */
-  async calPull(){
+  async calPull(force){
+    /* カレンダーは同期のたびに取りにいかない（10分に1回） */
+    if(!force && DB.cfg.calAt && (Date.now() - new Date(DB.cfg.calAt).getTime()) < 600000) return;
     const cal = DB.cfg.cal || {};
     const cals = Object.keys(cal).filter(k => cal[k]).map(k => ({staffId:k, calId:cal[k]}));
     if(!cals.length){ DB.gcal = []; return; }
@@ -1208,21 +1253,29 @@ const Sync = {
     if(!r.ok) throw new Error(r.error || '取得できませんでした');
     return r.calendars || [];
   },
-  /* 取り込み → 統合 → 書き戻し。競合したらやり直す */
+  /* 取り込み → 統合 → （変わっていれば）書き戻し。競合したら少し待ってやり直す */
   async run(){
     for(let attempt = 0; attempt < 4; attempt++){
-      const got = await this.call('pull');
+      const got = await this.call('pull', null, 45000);
       if(!got.ok) throw new Error(got.error || '取得に失敗しました');
       this.merge(got.data);
       DB.rev = got.rev || 0;
       stampChanges();
-      const put = await this.call('push', {rev: DB.rev, payload: this.payload()});
+      /* こちらに新しい入力が無ければ書き戻さない。
+         （毎回書き戻すと全端末が互いに競合し、同期が止まる原因になります） */
+      if(sig_(this.payload()) === sig_(got.data)){
+        DB.cfg.lastSync = nowISO(); writeDB_();
+        try{ await this.calPull(); }catch(e){}
+        return {ok:true, rev:DB.rev, skipped:true};
+      }
+      const put = await this.call('push', {rev: DB.rev, payload: this.payload()}, 60000);
       if(put.ok){ DB.rev = put.rev; DB.cfg.lastSync = nowISO();
-        try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){}
+        writeDB_();
         try{ await this.calPull(); }catch(e){ /* カレンダーは失敗しても本体は続行 */ }
         return put; }
-      if(!put.conflict) throw new Error(put.error || '書き込みに失敗しました');
-      /* 競合：相手が先に書いたので、取り込み直して再挑戦 */
+      if(!put.conflict && !put.busy) throw new Error(put.error || '書き込みに失敗しました');
+      /* 競合・混雑：端末ごとに違う長さだけ待ってから再挑戦（同時に殺到させない） */
+      await sleep_(700 + attempt * 900 + Math.floor(Math.random() * 1200));
     }
     throw new Error('他の端末と競合しました。少し待ってからもう一度お試しください。');
   }
@@ -1401,11 +1454,21 @@ function paintSync(){
     : '';
 }
 /* 自動同期：起動時＋数十秒ごとに「更新があるか」だけ確認して、あれば取り込む */
+let REV_OK = null;          /* 同期サーバーが軽い確認（rev）に対応しているか */
 async function checkRev(){
   if(Sync.busy || !Sync.ready() || DB.cfg.autoSync === false) return;
   try{
-    const r = await Sync.call('rev');
-    if(r && r.ok && Number(r.rev||0) !== Number(DB.rev||0)) await doSync(true);
+    if(REV_OK === false){ await doSync(true); return; }   /* 古いサーバーはこれまで通り */
+    const rv = await Sync.rev();
+    if(rv === null){
+      /* サーバーが rev 未対応。確認の間隔を広げて、フル同期に切り替える */
+      REV_OK = false;
+      clearInterval(startAutoSync._i);
+      startAutoSync._i = setInterval(checkRev, 180000);
+      await doSync(true); return;
+    }
+    REV_OK = true;
+    if(rv !== Number(DB.rev||0)) await doSync(true);
     else { Sync.status = '同期済'; paintSync(); }
   }catch(e){ /* 圏外などは黙って次回 */ }
 }
@@ -1511,7 +1574,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.2</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.3</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -4169,7 +4232,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '2.9';
+const APP_VER = '3.3';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
