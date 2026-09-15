@@ -387,18 +387,19 @@ tbody tr:hover{background:var(--line-2)}
 const KEY = 'kongo_sched_v2';
 const ORIGIN_DEFAULT = '山口県下関市貴船町4-1-23';
 
-const CATS = {
-  '修理':      '#e8792b',
-  '工事':      '#2f6fd0',
-  '現場調査':  '#d4a017',
-  '点検':      '#17a2a2',
-  '保守':      '#8b5cf6',
-  '定期清掃':  '#22a06b',
-  '日常清掃':  '#34c38f',
-  '巡回点検':  '#d63384',
-  '打合せ':    '#6b7280',
-  'その他':    '#9aa3ae'
-};
+/* 予定の区分と色（初期値）。実際の色は DB.scats に入り、設定画面で変更できます */
+const CATS_DEF = [
+  {id:'修理',     name:'修理',     color:'#e8792b'},
+  {id:'工事',     name:'工事',     color:'#2f6fd0'},
+  {id:'現場調査', name:'現場調査', color:'#d4a017'},
+  {id:'点検',     name:'点検',     color:'#17a2a2'},
+  {id:'保守',     name:'保守',     color:'#8b5cf6'},
+  {id:'定期清掃', name:'定期清掃', color:'#22a06b'},
+  {id:'日常清掃', name:'日常清掃', color:'#34c38f'},
+  {id:'巡回点検', name:'巡回点検', color:'#d63384'},
+  {id:'打合せ',   name:'打合せ',   color:'#6b7280'},
+  {id:'その他',   name:'その他',   color:'#9aa3ae'}
+];
 const PRIOS = { '至急':'r', '高':'o', '中':'n', '低':'n' };
 /* 案件パイプライン（受付→入金までの一本道）。滞留日数の既定値つき */
 const STAGES = [
@@ -547,7 +548,7 @@ function seed(){
   ];
   return importGTasks({
     staff: st, jobs, sch, todos, tpl, cats: [], imported:'gtasks1', log: [], deposits: [], closes: [], tomb: [], rev: 0, gcal: [],
-    reports: [], atd: [], spans: [],
+    reports: [], atd: [], spans: [], sec: [], scats: CATS_DEF.map((c,i) => Object.assign({}, c, {ord:i, active:true})),
     cfg: {
       apiKey:'', origin: ORIGIN_DEFAULT, travel: TRAVEL_TABLE_DEFAULT,
       autoTravel:true, defBuffer:15, wStart:8, wEnd:19, theme:'light', keepDays:30, actor:'', gasUrl:'', gasToken:'', lastSync:'',
@@ -559,7 +560,7 @@ function seed(){
 }
 /* 初期データは「一番古い更新」として扱う（他端末の実データを壊さないため） */
 function markSeed(d){
-  ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans'].forEach(k =>
+  ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans','scats'].forEach(k =>
     (d[k]||[]).forEach(r => { if(!r._u) r._u = SEED_U; }));
   return d;
 }
@@ -580,7 +581,7 @@ function load(){
     const base = markSeed(seed());
     d.cfg = Object.assign({}, base.cfg, d.cfg||{});
     if(!d.cfg.travel || !d.cfg.travel.length) d.cfg.travel = TRAVEL_TABLE_DEFAULT;
-    ['staff','jobs','sch','todos','tpl','reports','atd','cats','log','deposits','closes','tomb','spans'].forEach(k => { if(!Array.isArray(d[k])) d[k] = base[k]||[]; });
+    ['staff','jobs','sch','todos','tpl','reports','atd','cats','log','deposits','closes','tomb','spans','scats','sec'].forEach(k => { if(!Array.isArray(d[k])) d[k] = base[k]||[]; });
     if(typeof d.rev !== 'number') d.rev = 0;
     if(!Array.isArray(d.gcal)) d.gcal = [];
     if(!d.cfg.cal || typeof d.cfg.cal !== 'object') d.cfg.cal = {};
@@ -628,7 +629,7 @@ function load(){
   }catch(e){ return markSeed(seed()); }
 }
 /* 同期対象のコレクション */
-const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans'];
+const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans','scats','sec'];
 const APPEND = ['log','closes'];          // 追記のみ（idで重複排除）
 let SNAP = null;                          // key -> JSON（前回保存時の内容）
 
@@ -657,11 +658,184 @@ function stampChanges(){
   /* 古いお墓は掃除（90日） */
   DB.tomb = DB.tomb.filter(t => daysAgo(t.at) < 90);
 }
+/* ---------- この端末だけの設定（操作者・担当者・表示） ----------
+   本体のデータとは別に、小さな入れ物に保存します。
+   本体が大きくなって保存に失敗しても、選んだ名前だけは必ず残ります。 */
+const DEV_KEY = 'kongo_dev';
+function devGet(){ try{ return JSON.parse(localStorage.getItem(DEV_KEY) || '{}') || {}; }catch(e){ return {}; } }
+function devSet(o){ try{ localStorage.setItem(DEV_KEY, JSON.stringify(Object.assign(devGet(), o))); }catch(e){} }
+/* 起動時に、この端末で前回選んだ内容を戻す */
+function devApply(d){
+  const v = devGet();
+  if(v.actor && (d.staff||[]).some(x => x.id === v.actor)) d.cfg.actor = v.actor;
+  if(v.me    && (d.staff||[]).some(x => x.id === v.me))    d.cfg.me    = v.me;
+  if(v.mode)  d.cfg.mode  = v.mode;
+  if(v.theme) d.cfg.theme = v.theme;
+}
+
+let SAVE_OK = true;          /* 端末に保存できているか */
+function writeDB_(){
+  try{ localStorage.setItem(KEY, JSON.stringify(DB)); return true; }
+  catch(e){ return false; }
+}
 function save(){
-  try{ stampChanges(); localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){}
+  try{ stampChanges(); }catch(e){}
+  let ok = writeDB_();
+  if(!ok){
+    /* 端末の空きが足りないときは、古い控えを減らしてもう一度ためす */
+    if(DB.log  && DB.log.length  > 300){ DB.log  = DB.log.slice(-300);  ok = writeDB_(); }
+    if(!ok && DB.gcal && DB.gcal.length){ DB.gcal = [];                 ok = writeDB_(); }
+    if(!ok && DB.tomb && DB.tomb.length > 200){ DB.tomb = DB.tomb.slice(-200); ok = writeDB_(); }
+  }
+  SAVE_OK = ok;
   if(typeof scheduleSync === 'function') scheduleSync();
 }
 
+/* ============================================================
+   管理者ログイン（木村のみ）
+   ・パスワードは「元に戻せない形（ハッシュ）」だけを保存し、同期で全端末に行き渡ります
+   ・アプリ本体（公開ファイル）にはパスワードもハッシュも入っていません
+   ============================================================ */
+/* コンパクトな SHA-256（file:// でも動くように自前で持つ） */
+const SHA_K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256(str){
+  const msg=[]; for(let i=0;i<str.length;i++){ let c=str.charCodeAt(i);
+    if(c<128) msg.push(c);
+    else if(c<2048){ msg.push(192|(c>>6),128|(c&63)); }
+    else if(c<55296||c>57343){ msg.push(224|(c>>12),128|((c>>6)&63),128|(c&63)); }
+    else { i++; const c2=str.charCodeAt(i); const u=65536+((c&1023)<<10)+(c2&1023);
+      msg.push(240|(u>>18),128|((u>>12)&63),128|((u>>6)&63),128|(u&63)); } }
+  const bl=msg.length*8; msg.push(0x80); while(msg.length%64!==56) msg.push(0);
+  const hi=Math.floor(bl/4294967296), lo=bl>>>0;
+  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255,(lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  const w=new Array(64);
+  for(let i=0;i<msg.length;i+=64){
+    for(let t=0;t<16;t++) w[t]=(msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3];
+    for(let t=16;t<64;t++){ const a=w[t-15],b=w[t-2];
+      const s0=((a>>>7)|(a<<25))^((a>>>18)|(a<<14))^(a>>>3);
+      const s1=((b>>>17)|(b<<15))^((b>>>19)|(b<<13))^(b>>>10);
+      w[t]=(w[t-16]+s0+w[t-7]+s1)|0; }
+    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,hh=h7;
+    for(let t=0;t<64;t++){
+      const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7));
+      const ch=(e&f)^(~e&g);
+      const t1=(hh+S1+ch+SHA_K[t]+w[t])|0;
+      const S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10));
+      const mj=(a&b)^(a&c)^(b&c);
+      const t2=(S0+mj)|0;
+      hh=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0; }
+    h0=(h0+a)|0; h1=(h1+b)|0; h2=(h2+c)|0; h3=(h3+d)|0;
+    h4=(h4+e)|0; h5=(h5+f)|0; h6=(h6+g)|0; h7=(h7+hh)|0; }
+  return [h0,h1,h2,h3,h4,h5,h6,h7].map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+const PW_ITER = 60000;
+function pwHash(pw, salt){
+  let x = sha256(salt + '|' + pw);
+  for(let i=0;i<PW_ITER;i++) x = sha256(x + salt);
+  return x;
+}
+function newSalt(){
+  let s = '';
+  for(let i=0;i<4;i++) s += Math.random().toString(36).slice(2);
+  return sha256(s + Date.now()).slice(0, 32);
+}
+const secAdmin  = () => (DB.sec||[]).find(x => x.id === 'admin');
+const hasAdminPw= () => { const a = secAdmin(); return !!(a && a.hash && a.salt); };
+const ADMIN_KEY = 'kongo_admin_ok';
+function adminOK(){
+  try{
+    const v = JSON.parse(localStorage.getItem(ADMIN_KEY) || 'null');
+    if(!v || !v.at) return false;
+    const a = secAdmin();
+    if(a && v.h !== a.hash) return false;          /* パスワードが変わったら入り直し */
+    if(Date.now() - v.at > 30*86400000) return false;
+    return true;
+  }catch(e){ return false; }
+}
+function adminUnlock(){
+  const a = secAdmin();
+  try{ localStorage.setItem(ADMIN_KEY, JSON.stringify({at:Date.now(), h:a?a.hash:''})); }catch(e){}
+}
+function adminLogout(){
+  try{ localStorage.removeItem(ADMIN_KEY); }catch(e){}
+  const first = activeStaff().find(x => admins().indexOf(x.id) < 0);
+  DB.cfg.actor = first ? first.id : ''; devSet({actor:DB.cfg.actor});
+  save(); render(); toast('管理者からログアウトしました');
+}
+/* 操作者を選ぶとき、管理者はパスワードを要求する */
+let LG = null;
+function askLogin(id){ LG = {id, user:'', pw:'', msg:''}; drawLogin(); }
+function drawLogin(){
+  const nm = (staffById(LG.id)||{}).name || '管理者';
+  shell(nm + ' としてログイン',
+    '<div class="hintline">管理者（' + esc(adminNames()) + '）に切り替えるには、IDとパスワードが必要です。' +
+    'ほかの担当者は、そのまま自分の名前を選んでお使いください。</div>' +
+    f('ログインID','<input id="lg_u" type="email" autocomplete="username" value="'+esc(LG.user)+'" ' +
+      'oninput="LG.user=this.value" placeholder="メールアドレス">') +
+    f('パスワード','<input id="lg_p" type="password" autocomplete="current-password" value="'+esc(LG.pw)+'" ' +
+      'oninput="LG.pw=this.value" onkeydown="if(event.key===\'Enter\')doLogin()">') +
+    (LG.msg ? '<div class="hintline" style="color:var(--danger)"><b>'+esc(LG.msg)+'</b></div>' : ''),
+    '<div class="sp"></div><button class="btn" onclick="LG=null;closeM();render()">キャンセル</button>' +
+    '<button class="btn pri" onclick="doLogin()">ログイン</button>');
+  setTimeout(()=>{ const e = document.getElementById(LG.user?'lg_p':'lg_u'); if(e) e.focus(); }, 30);
+}
+function doLogin(){
+  const a = secAdmin();
+  if(!a){ LG.msg = 'パスワードが未設定です。'; drawLogin(); return; }
+  if((LG.user||'').trim().toLowerCase() !== String(a.user||'').toLowerCase()){
+    LG.msg = 'IDかパスワードが違います。'; LG.pw = ''; drawLogin(); return;
+  }
+  if(pwHash(LG.pw, a.salt) !== a.hash){
+    LG.msg = 'IDかパスワードが違います。'; LG.pw = ''; drawLogin();
+    logIt('設定', 'login', '管理者ログイン', 'ログイン失敗', '', (LG.user||'').slice(0,40));
+    save(); return;
+  }
+  adminUnlock();
+  DB.cfg.actor = LG.id; devSet({actor:LG.id});
+  logIt('設定', 'login', '管理者ログイン', 'ログイン', '', (staffById(LG.id)||{}).name || '');
+  LG = null; save(); closeM(); render();
+  toast('管理者としてログインしました');
+}
+/* パスワードの設定・変更 */
+let PW = null;
+function openPw(){ PW = {cur:'', a:'', b:'', user: (secAdmin()||{}).user || '', msg:''}; drawPw(); }
+function drawPw(){
+  const has = hasAdminPw();
+  shell(has ? '管理者パスワードの変更' : '管理者パスワードの設定',
+    '<div class="hintline">' + (has ? 'いまのパスワードを入れてから、新しいパスワードを決めてください。'
+      : 'まだ設定されていません。<b>いちばん最初に設定してください。</b>設定すると、管理者に切り替えるときにIDとパスワードが必要になります。') +
+    '<br>パスワードは<b>元に戻せない形（ハッシュ）</b>にしてから保存し、同期でほかの端末にも行き渡ります。' +
+    'アプリの中にパスワードそのものは残りません。</div>' +
+    f('ログインID（メールアドレス）','<input type="email" value="'+esc(PW.user)+'" oninput="PW.user=this.value" placeholder="xxx@example.com">') +
+    (has ? f('いまのパスワード','<input type="password" value="'+esc(PW.cur)+'" oninput="PW.cur=this.value">') : '') +
+    f('新しいパスワード','<input type="password" value="'+esc(PW.a)+'" oninput="PW.a=this.value">') +
+    f('新しいパスワード（確認）','<input type="password" value="'+esc(PW.b)+'" oninput="PW.b=this.value" onkeydown="if(event.key===\'Enter\')savePw()">') +
+    (PW.msg ? '<div class="hintline" style="color:var(--danger)"><b>'+esc(PW.msg)+'</b></div>' : ''),
+    '<div class="sp"></div><button class="btn" onclick="PW=null;closeM()">キャンセル</button>' +
+    '<button class="btn pri" onclick="savePw()">保存</button>');
+}
+function savePw(){
+  const a = secAdmin();
+  if(a && pwHash(PW.cur, a.salt) !== a.hash){ PW.msg = 'いまのパスワードが違います。'; PW.cur=''; drawPw(); return; }
+  if(!PW.user.trim() || PW.user.indexOf('@') < 0){ PW.msg = 'ログインIDを正しく入れてください。'; drawPw(); return; }
+  if(PW.a.length < 8){ PW.msg = 'パスワードは8文字以上にしてください。'; drawPw(); return; }
+  if(PW.a !== PW.b){ PW.msg = '新しいパスワードが一致しません。'; drawPw(); return; }
+  const salt = newSalt();
+  const rec = {id:'admin', user: PW.user.trim(), salt, iter: PW_ITER, hash: pwHash(PW.a, salt)};
+  DB.sec = (DB.sec||[]).filter(x => x.id !== 'admin').concat([rec]);
+  adminUnlock();
+  logIt('設定', 'admin', '管理者パスワード', a ? '変更' : '設定', '', PW.user.trim());
+  PW = null; save(); closeM(); render();
+  toast('管理者パスワードを保存しました');
+}
 /* ---------- 操作者と変更履歴（監査ログ） ---------- */
 function actor(){ return DB.cfg.actor || ''; }
 function actorName(){ const s = staffById(actor()); return s ? (s.full||s.name) : '未設定'; }
@@ -672,7 +846,8 @@ const ADMIN_DEF = ['s1'];
 const LOCK_DEF  = {jobs:true, todos:true, pays:true, sch:false};
 const admins    = () => (DB.cfg.admins && DB.cfg.admins.length) ? DB.cfg.admins : ADMIN_DEF;
 const adminNames= () => admins().map(a => (staffById(a)||{}).name || '?').join('・');
-const isAdmin   = () => admins().indexOf(actor()) >= 0;
+/* 管理者は「操作者に選ぶだけ」ではなれない。パスワードでログインした端末のみ管理者として扱う */
+const isAdmin   = () => admins().indexOf(actor()) >= 0 && (!hasAdminPw() || adminOK());
 function lockOn(k){ const L = DB.cfg.lock || {}; return (k in L) ? !!L[k] : !!LOCK_DEF[k]; }
 const canDel    = k => isAdmin() || !lockOn(k);
 const DEL_NAME  = {jobs:'案件', todos:'ToDo', pays:'入金の記録', sch:'予定'};
@@ -718,7 +893,26 @@ function missingCodes(){
 }
 const codeStr = n => 'R-' + String(1000 + n).slice(1);
 const activeStaff = () => sortStaff(DB.staff.filter(s => s.active !== false));
-const catColor = c => CATS[c] || '#9aa3ae';
+/* ---------- 予定の区分（設定画面で色・名前・並びを変更できます） ---------- */
+const scats     = () => (DB.scats && DB.scats.length ? DB.scats : CATS_DEF);
+const catList   = () => scats().filter(c => c.active !== false)
+                    .slice().sort((a,b) => (a.ord||0) - (b.ord||0));
+const catById   = id => scats().find(c => c.id === id);
+const catName   = id => (catById(id)||{}).name || id || '';
+const catColor  = id => (catById(id)||{}).color || '#9aa3ae';
+const catIds    = () => catList().map(c => c.id);
+function catOptions(sel){
+  let h = catList().map(c => '<option value="'+esc(c.id)+'"'+(sel===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('');
+  if(sel && !catById(sel)) h = '<option value="'+esc(sel)+'" selected>'+esc(sel)+'</option>' + h;
+  return h;
+}
+/* 保存先を用意する（初回だけ初期値から作る） */
+function ensureScats(){
+  if(!Array.isArray(DB.scats) || !DB.scats.length)
+    DB.scats = CATS_DEF.map((c,i) => Object.assign({}, c, {ord:i, active:true}));
+  DB.scats.forEach((c,i) => { if(typeof c.ord !== 'number') c.ord = i; });
+  return DB.scats;
+}
 
 /* ---------- 月間工程表（長期の現場） ---------- */
 const liveSpans  = () => (DB.spans||[]).filter(p => !p.del);
@@ -1170,6 +1364,15 @@ function syncBtn(){
     'title="押すと、ほかの端末とGoogleカレンダーの最新を取り込みます">⟳ <span>'+esc(lb)+'</span></button>';
 }
 /* 同期の状態カード（本日のボードと設定に出ます） */
+/* 端末に保存できていないときの注意（原因がわからないまま設定が消えるのを防ぐ） */
+function saveWarnHtml(){
+  if(SAVE_OK) return '';
+  return '<section class="panel" style="border-color:var(--danger)"><header>' +
+    '<h2 style="color:var(--danger)">⚠ この端末にデータを保存できていません</h2></header>' +
+    '<div class="pad hintline">ブラウザの保存領域がいっぱいか、プライベートモードの可能性があります。' +
+    '入力した内容は同期で残りますが、この端末では消えることがあります。' +
+    'ブラウザの履歴・サイトデータを整理するか、別のブラウザでお試しください。</div></section>';
+}
 function syncCard(){
   if(!Sync.ready())
     return '<section class="panel"><header><h2>同期の状態</h2></header>' +
@@ -1179,7 +1382,7 @@ function syncCard(){
   const auto = DB.cfg.autoSync !== false;
   const cell = (t, v, ok) => '<div style="min-width:150px"><div class="hintline" style="margin:0">'+t+'</div>' +
     '<b style="font-size:13.5px;color:'+(ok?'var(--ok)':'var(--tx-2)')+'">'+v+'</b></div>';
-  return '<section class="panel"><header><h2>同期の状態</h2>' +
+  return saveWarnHtml() + '<section class="panel"><header><h2>同期の状態</h2>' +
     '<span class="hint">ほかの端末やGoogleカレンダーの内容が届いているか</span><div class="sp"></div>' +
     '<button class="btn sm pri" onclick="doSync()">いま同期する</button></header>' +
     '<div class="pad" style="display:flex;gap:22px;flex-wrap:wrap">' +
@@ -1244,8 +1447,8 @@ S.me   = DB.cfg.me || (activeStaff()[0]||{}).id || '';
 const isMe = () => S.mode === 'me' && !!S.me;
 const meStaff = () => staffById(S.me);
 function setMode(m){ S.mode = m; if(m==='me' && !staffById(S.me)) S.me = (activeStaff()[0]||{}).id||'';
-  DB.cfg.mode = m; DB.cfg.me = S.me; save(); render(); }
-function setMe(id){ S.me = id; DB.cfg.me = id; save(); render(); }
+  DB.cfg.mode = m; DB.cfg.me = S.me; devSet({mode:m, me:S.me}); save(); render(); }
+function setMe(id){ S.me = id; DB.cfg.me = id; devSet({me:id}); save(); render(); }
 /* 表示モードに応じた絞り込み */
 const mySch   = list => isMe() ? list.filter(e => e.who.includes(S.me)) : list;
 const myTodos = list => isMe() ? list.filter(t => (t.who||[]).includes(S.me)) : list;
@@ -1308,7 +1511,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.0</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.2</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1330,7 +1533,11 @@ function render(){
   paintSync();
   try{ paintHint(); }catch(e){}
 }
-function setActor(id){ DB.cfg.actor = id; save(); render(); }
+function setActor(id){
+  /* 管理者に切り替えるにはパスワードが必要（操作者を選ぶだけでは管理者になれない） */
+  if(id && admins().indexOf(id) >= 0 && hasAdminPw() && !adminOK()){ render(); askLogin(id); return; }
+  DB.cfg.actor = id; devSet({actor:id}); save(); render();
+}
 function resetSync(){
   DB.cfg.gasUrl = BUILTIN_URL; DB.cfg.gasToken = BUILTIN_TOKEN;
   DB.cfg.setupDone = true; DB.cfg.seen = true;
@@ -1352,7 +1559,7 @@ function setLock(k, v){
   logIt('設定', 'lock', '削除制限の変更', DEL_NAME[k], '', v ? '管理者のみ' : '全員');
   save(); render();
 }
-function toggleTheme(){ DB.cfg.theme = (DB.cfg.theme==='dark'?'light':'dark'); save(); render(); }
+function toggleTheme(){ DB.cfg.theme = (DB.cfg.theme==='dark'?'light':'dark'); devSet({theme:DB.cfg.theme}); save(); render(); }
 
 function topRight(){
   if(S.view === 'board') return dateNav(S.date, 'shiftDay') +
@@ -1531,7 +1738,7 @@ function viewBoard(){
     '<section class="panel"><header><h2>ディスパッチボード</h2>' +
       '<span class="hint">帯をタップで詳細／斜線は移動時間／重なった予定は段を分けて表示</span>' +
       '<div class="sp"></div><button class="btn sm" onclick="openSch()">＋ 予定</button></header>' +
-      '<div class="legend">' + Object.keys(CATS).map(k => '<span><i style="background:'+CATS[k]+'"></i>'+k+'</span>').join('') +
+      '<div class="legend">' + catList().map(c => '<span><i style="background:'+c.color+'"></i>'+esc(c.name)+'</span>').join('') +
         '<span><i style="background:transparent;border:1.4px dashed #98a4b3"></i>仮予定</span>' +
         '<span><span class="tv"></span>移動時間</span>' +
         (hasCal() ? '<span><i style="background:transparent;border:1.4px solid #7c8898"></i>📅 Googleカレンダー</span>' : '') + '</div>' +
@@ -1547,7 +1754,7 @@ function viewBoard(){
       (unassigned.length ? '<div class="pad">' + unassigned.map(j =>
         '<div class="todo rowlink2" onclick="openJob(\''+j.id+'\')" title="タップして開く"><div class="bd"><div class="ttl">'+esc(j.customer)+' — '+esc(j.title)+'</div>' +
         '<div class="meta"><span class="tag '+(PRIOS[j.prio]||'n')+'">'+esc(j.prio)+'</span>' +
-        '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(j.cat)+'</span>' +
+        '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(catName(j.cat))+'</span>' +
         '<span>'+esc(j.address||'住所未登録')+'</span></div></div>' +
         '<div class="acts" onclick="event.stopPropagation()">' +
         '<button class="btn sm pri" onclick="openSch(null,\''+j.id+'\')">予定を作る</button></div></div>').join('') + '</div>'
@@ -1580,7 +1787,7 @@ function viewBoardMe(){
     h += tlRow(e.start,
       '<div class="tlcard'+(e.ext?' ext':'')+'" style="border-left-color:'+(e.ext?'#97a2b0':c)+'" onclick="'+(e.ext?'openExt(\''+e.id+'\')':'openSch(\''+e.id+'\')')+'">' +
       '<b>'+(e.ext?'📅 ':'')+esc(e.title)+'</b>' +
-      '<div class="m">'+e.start+'–'+e.end+'　'+esc(e.cat)+
+      '<div class="m">'+e.start+'–'+e.end+'　'+esc(catName(e.cat))+
         (others.length ? '　同行：'+esc(whoNames(others)) : '') +
         (dup.has(e.id) ? '　<span class="tag r">時間が重複</span>' : '') +
         (e.tent ? '　<span class="tag n">仮予定</span>' : '') + '</div>' +
@@ -1651,7 +1858,7 @@ function viewWeekMe(){
             '<b>'+(e.ext?'📅 ':'')+esc(e.title)+'</b><div class="m">' +
             ((e.out|0)?toHM(toMin(e.start)-(e.out|0))+' 出発 ／ ':'') + e.start+'–'+e.end +
             ((e.back|0)?' ／ '+toHM(toMin(e.end)+(e.back|0))+' 帰社':'') +
-            '　'+esc(e.cat) + (others.length?'　同行：'+esc(whoNames(others)):'') + '</div>' +
+            '　'+esc(catName(e.cat)) + (others.length?'　同行：'+esc(whoNames(others)):'') + '</div>' +
             (e.address?'<div class="m">📍 <a class="addr-link" target="_blank" rel="noopener" href="'+esc(mapUrl(e.address))+'" onclick="event.stopPropagation()">'+esc(e.address)+'</a></div>':'') + '</div>';
         }).join('') + '</div>' : '<div class="empty" style="padding:16px">予定なし</div>') +
       '</section>';
@@ -1703,7 +1910,7 @@ function evRow(e, extra){
     '<div class="bd"><div class="ttl">'+(e.ext?'📅 ':'')+esc(e.title)+'</div>' +
     '<div class="meta">' +
       '<span class="tag n">'+(e.allDay?'終日':e.start+'–'+e.end)+'</span>' +
-      '<span class="tag n" style="background:'+c+'22;color:'+c+'">'+esc(e.cat)+'</span>' +
+      '<span class="tag n" style="background:'+c+'22;color:'+c+'">'+esc(catName(e.cat))+'</span>' +
       avatars(e.who) +
       (((e.out|0)||(e.back|0)) ? '<span class="tag n">移動 往'+(e.out|0)+'／復'+(e.back|0)+'分</span>' : '') +
       (e.address ? '<span>📍'+esc(e.address)+'</span>' : '') +
@@ -1741,7 +1948,7 @@ function openStat(kind){
       '<div class="todo" style="border-left:3px solid var(--accent)"><div class="bd">' +
       '<div class="ttl">'+esc(j.customer)+' — '+esc(j.title)+'</div><div class="meta">' +
       '<span class="tag '+(PRIOS[j.prio]||'n')+'">'+esc(j.prio)+'</span>' +
-      '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(j.cat)+'</span>' +
+      '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(catName(j.cat))+'</span>' +
       '<span class="tag n">'+esc(j.status)+'</span>' +
       (j.address?'<span>📍'+esc(j.address)+'</span>':'') + '</div></div>' +
       '<div class="acts"><button class="btn sm" onclick="closeM();openJob(\''+j.id+'\')">編集</button>' +
@@ -1937,7 +2144,7 @@ function viewGantt(){
         return '<div class="todo rowlink2" onclick="openSpan(\''+p.id+'\')"><div class="bd">' +
           '<div class="ttl">'+esc(p.title)+'</div><div class="meta">' +
           '<span class="tag '+st[1]+'">'+st[0]+'</span>' +
-          '<span class="tag n" style="background:'+spanColor(p)+'22;color:'+spanColor(p)+'">'+esc(p.cat||'工事')+'</span>' +
+          '<span class="tag n" style="background:'+spanColor(p)+'22;color:'+spanColor(p)+'">'+esc(catName(p.cat||'工事'))+'</span>' +
           '<span>'+esc(whoNames(p.who) || '担当未設定')+'</span>' +
           '<span>'+p.start.replace(/-/g,'/')+' – '+spanEnd(p).replace(/-/g,'/')+'（'+spanDays(p)+'日間）</span>' +
           '</div></div></div>';
@@ -1968,9 +2175,9 @@ function drawSpan(){
       f('終了日','<input type="date" value="'+esc(SP.end)+'" onchange="spSet(\'end\',this.value)">') +
     '</div>' +
     '<div class="hintline">期間：'+mdStr(SP.start)+' – '+mdStr(spanEnd(SP))+'（<b>'+dys+'日間</b>）</div>' +
-    f('区分（帯の色）','<div class="pick plain">' + Object.keys(CATS).map(k =>
-      '<button type="button" class="'+(SP.cat===k?'on':'')+'" onclick="SP.cat=\''+k+'\';drawSpan()" ' +
-      'style="'+(SP.cat===k?'border-color:'+CATS[k]+';background:'+CATS[k]+';color:#fff':'')+'">'+k+'</button>').join('') + '</div>') +
+    f('区分（帯の色）','<div class="pick plain">' + catList().map(c =>
+      '<button type="button" class="'+(SP.cat===c.id?'on':'')+'" onclick="SP.cat=\''+esc(c.id)+'\';drawSpan()" ' +
+      'style="'+(SP.cat===c.id?'border-color:'+c.color+';background:'+c.color+';color:#fff':'')+'">'+esc(c.name)+'</button>').join('') + '</div>') +
     f('関連する案件（任意）','<select onchange="SP.jobId=this.value">' +
       '<option value="">（なし）</option>' + liveJobs().map(j =>
       '<option value="'+j.id+'"'+(SP.jobId===j.id?' selected':'')+'>'+esc(j.customer+' '+j.title)+'</option>').join('') + '</select>') +
@@ -2636,6 +2843,7 @@ function viewCfg(){
   DB.staff.sort((a,b) => stOrd(a) - stOrd(b));
   document.getElementById('body').innerHTML =
     syncCard() +
+    loginCfgHtml() +
     '<section class="panel"><header><h2>移動時間の設定</h2></header><div class="pad" style="display:flex;flex-direction:column;gap:14px">' +
       '<div class="f"><label>出発地（自社）</label>' +
         '<input value="'+esc(c.origin)+'" onchange="DB.cfg.origin=this.value;save();toast(\'保存しました\')"></div>' +
@@ -2655,35 +2863,7 @@ function viewCfg(){
         '<button class="btn sm" onclick="addTT()">＋ 行を追加</button></div>' +
     '</div></section>' +
 
-    '<section class="panel"><header><h2>権限・不正防止</h2>' +
-      '<span class="hint">'+(isAdmin()?'管理者として表示中':'管理者（'+esc(adminNames())+'）だけが変更できます')+'</span></header>' +
-      '<div class="pad" style="display:flex;flex-direction:column;gap:14px">' +
-      '<div class="sec"><h4>管理者（消す操作ができる人）</h4>' +
-        '<div class="pick">' + activeStaff().map(x =>
-          '<button type="button" class="'+(admins().indexOf(x.id)>=0?'on':'')+'"' +
-          (isAdmin()?' onclick="togAdmin(\''+x.id+'\')"':' disabled style="opacity:.55"') + '>' +
-          avatar(x)+esc(x.name)+'</button>').join('') + '</div>' +
-        '<div class="hintline">管理者は最低1人必要です。ふだんは代表1名だけにしておくのが安全です。</div></div>' +
-      '<div class="sec"><h4>「消す操作」を管理者だけに制限する</h4>' +
-        [['jobs','案件（受付・工事）'],['todos','ToDo'],['pays','入金の記録'],['sch','予定（スケジュール）']].map(x =>
-          '<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0">' +
-          '<input type="checkbox" '+(lockOn(x[0])?'checked':'')+(isAdmin()?'':' disabled') +
-          ' onchange="setLock(\''+x[0]+'\',this.checked)" style="width:16px;height:16px"> '+x[1]+'</label>').join('') +
-        '<div class="hintline">制限すると、ほかの人は「完了」にはできますが消せません。' +
-        '内容を開いて「削除を依頼」を押すと、管理者に通知が届きます。</div></div>' +
-      '<div class="grid2">' +
-        '<div class="f"><label>集金した現金を「預りすぎ」と警告する日数</label>' +
-          '<input type="number" min="1" value="'+(DB.cfg.cashDays||7)+'"'+(isAdmin()?'':' disabled') +
-          ' onchange="DB.cfg.cashDays=+this.value||7;save();render()">' +
-          '<span class="hintline">集金日からこの日数を過ぎて会社へ納金されていないと、赤で表示します。</span></div>' +
-        '<div class="f"><label>削除済み・完了の保管日数（ToDo）</label>' +
-          '<input type="number" min="1" value="'+keepDays()+'"'+(isAdmin()?'':' disabled') +
-          ' onchange="DB.cfg.keepDays=+this.value||30;save();render()">' +
-          '<span class="hintline">案件は自動では消えません（「削除済み」にずっと残ります）。</span></div>' +
-      '</div>' +
-      '<div class="hintline">■ 消しても必ず残るもの：<b>受付№</b>（欠番でわかる）／<b>削除済み案件</b>（元に戻せる）／' +
-      '<b>変更履歴</b>（誰がいつ何を変えたか。Googleスプレッドシートにも追記されます）</div>' +
-      '</div></section>' +
+    adminCfgHtml() +
 
     '<section class="panel"><header><h2>担当者</h2><div class="sp"></div>' +
       '<button class="btn sm" onclick="addStaff()">＋ 追加</button></header>' +
@@ -2701,12 +2881,15 @@ function viewCfg(){
         '<td><button class="btn sm dg" onclick="delStaff(\''+s.id+'\')">削除</button></td></tr>').join('') +
       '</tbody></table></section>' +
 
+    scatCfgHtml() +
+
     '<section class="panel"><header><h2>操作者と記録</h2></header><div class="pad">' +
       '<div class="grid2">' +
         '<div class="f"><label>この端末を使う人（操作者）</label>' +
           '<select onchange="setActor(this.value)"><option value="">未設定</option>' +
           activeStaff().map(s=>'<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.full||s.name)+'</option>').join('') +
-          '</select><span class="hintline">金額・工程・入金の変更は、この人の名前で履歴に残ります。</span></div>' +
+          '</select><span class="hintline">金額・工程・入金の変更は、この人の名前で履歴に残ります。<br>' +
+          '<b>一度選べば、この端末がおぼえます。</b>次に開いたときも選び直す必要はありません。</span></div>' +
         '<div class="f"><label>現金の預り上限（超えたら警告）</label>' +
           '<input type="number" min="0" step="10000" value="'+(DB.cfg.cashLimit||0)+'" onchange="DB.cfg.cashLimit=+this.value||0;save()">' +
           '<span class="hintline">1人がこの金額以上の現金を持ち越したら注意表示します。</span></div>' +
@@ -2907,6 +3090,137 @@ function renderTT(){
       '<button class="btn sm dg" onclick="DB.cfg.travel.splice('+i+',1);save();renderTT()">×</button></div>').join('') + '</div>';
 }
 function addTT(){ DB.cfg.travel.push({kw:'', m:20}); save(); renderTT(); }
+/* ---------- 予定の区分（ボードの帯の色）の編集 ---------- */
+const scatUsed = id => DB.sch.filter(e => e.cat === id).length +
+                      DB.jobs.filter(j => !j.del && j.cat === id).length +
+                      (DB.spans||[]).filter(p => p.cat === id).length;
+function setScatColor(id, v){
+  ensureScats(); const c = catById(id); if(!c) return;
+  c.color = v; save(); render();
+}
+function setScatName(id, v){
+  ensureScats(); const c = catById(id); if(!c) return;
+  const nm = String(v||'').trim(); if(!nm || nm === c.name){ render(); return; }
+  logIt('設定', 'scat:'+id, '予定の区分', '名前', c.name, nm);
+  c.name = nm; save(); render();
+}
+function moveScat(id, dir){
+  ensureScats();
+  const list = catList(), i = list.findIndex(c => c.id === id), j = i + dir;
+  if(i < 0 || j < 0 || j >= list.length) return;
+  list.forEach((c,k) => { c.ord = k; });
+  list[i].ord = j; list[j].ord = i;
+  DB.scats.sort((a,b) => (a.ord||0) - (b.ord||0));
+  save(); render();
+}
+function addScat(){
+  ensureScats();
+  const mx = DB.scats.reduce((a,c) => Math.max(a, c.ord||0), -1);
+  DB.scats.push({id: uid('sc'), name:'新しい区分', color:'#6b7280', ord: mx + 1, active:true});
+  logIt('設定', 'scat', '予定の区分', '追加', '', '新しい区分');
+  save(); render();
+}
+function delScat(id){
+  ensureScats();
+  const c = catById(id); if(!c) return;
+  const n = scatUsed(id);
+  if(n){ alert('この区分は '+n+' 件で使われているため削除できません。\n名前や色の変更はできます。'); return; }
+  if(!confirm('区分「'+c.name+'」を削除します。よろしいですか？')) return;
+  DB.scats = DB.scats.filter(x => x.id !== id);
+  logIt('設定', 'scat:'+id, '予定の区分', '削除', c.name, '');
+  save(); render();
+}
+function resetScats(){
+  if(!confirm('予定の区分と色を、はじめの状態に戻します。よろしいですか？')) return;
+  DB.scats = CATS_DEF.map((c,i) => Object.assign({}, c, {ord:i, active:true}));
+  logIt('設定', 'scat', '予定の区分', 'はじめの状態に戻す', '', '');
+  save(); render();
+}
+function scatCfgHtml(){
+  ensureScats();
+  const list = catList();
+  return '<section class="panel"><header><h2>予定の区分と色</h2>' +
+    '<span class="hint">本日のボード・週間予定・月間工程表の帯の色になります</span>' +
+    '<div class="sp"></div>' +
+    '<button class="btn sm" onclick="resetScats()">はじめの色に戻す</button>' +
+    '<button class="btn sm pri" onclick="addScat()">＋ 区分を追加</button></header>' +
+    '<div class="pad">' +
+    '<div class="legend" style="margin-bottom:10px">' + list.map(c =>
+      '<span><i style="background:'+c.color+'"></i>'+esc(c.name)+'</span>').join('') + '</div>' +
+    '<table><thead><tr><th>並び</th><th>色</th><th>見本</th><th>区分の名前</th><th>使用中</th><th></th></tr></thead><tbody>' +
+    list.map((c,i) => {
+      const n = scatUsed(c.id);
+      return '<tr>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn sm gh" onclick="moveScat(\''+esc(c.id)+'\',-1)"'+(i===0?' disabled':'')+'>▲</button> ' +
+          '<button class="btn sm gh" onclick="moveScat(\''+esc(c.id)+'\',1)"'+(i===list.length-1?' disabled':'')+'>▼</button></td>' +
+        '<td><input type="color" value="'+c.color+'" onchange="setScatColor(\''+esc(c.id)+'\',this.value)" ' +
+          'style="width:48px;height:32px;border:none;background:none;cursor:pointer"></td>' +
+        '<td><span class="wchip" style="background:'+c.color+';width:118px;display:inline-block">09:00 '+esc(c.name)+'</span></td>' +
+        '<td><input value="'+esc(c.name)+'" onchange="setScatName(\''+esc(c.id)+'\',this.value)" ' +
+          'style="width:130px;padding:5px;border:1px solid var(--line);border-radius:7px"></td>' +
+        '<td class="mono">'+n+'件</td>' +
+        '<td>' + (n ? '<span class="hintline">使用中は削除できません</span>'
+                    : '<button class="btn sm dg" onclick="delScat(\''+esc(c.id)+'\')">削除</button>') + '</td></tr>';
+    }).join('') +
+    '</tbody></table>' +
+    '<div class="hintline">色を変えると、すでに入っている予定の帯もすぐに新しい色になります。' +
+    '名前を変えても、その区分で登録済みの予定はそのまま引き継がれます。' +
+    'この設定は同期され、ほかの端末にも反映されます。</div>' +
+    '</div></section>';
+}
+/* 権限・不正防止（管理者にだけ見せる） */
+function adminCfgHtml(){
+  if(!isAdmin()) return '';
+  return '<section class="panel"><header><h2>権限・不正防止</h2>' +
+      '<span class="hint">'+(isAdmin()?'管理者として表示中':'管理者（'+esc(adminNames())+'）だけが変更できます')+'</span></header>' +
+      '<div class="pad" style="display:flex;flex-direction:column;gap:14px">' +
+      '<div class="sec"><h4>管理者（消す操作ができる人）</h4>' +
+        '<div class="pick">' + activeStaff().map(x =>
+          '<button type="button" class="'+(admins().indexOf(x.id)>=0?'on':'')+'"' +
+          (isAdmin()?' onclick="togAdmin(\''+x.id+'\')"':' disabled style="opacity:.55"') + '>' +
+          avatar(x)+esc(x.name)+'</button>').join('') + '</div>' +
+        '<div class="hintline">管理者は最低1人必要です。ふだんは代表1名だけにしておくのが安全です。</div></div>' +
+      '<div class="sec"><h4>「消す操作」を管理者だけに制限する</h4>' +
+        [['jobs','案件（受付・工事）'],['todos','ToDo'],['pays','入金の記録'],['sch','予定（スケジュール）']].map(x =>
+          '<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0">' +
+          '<input type="checkbox" '+(lockOn(x[0])?'checked':'')+(isAdmin()?'':' disabled') +
+          ' onchange="setLock(\''+x[0]+'\',this.checked)" style="width:16px;height:16px"> '+x[1]+'</label>').join('') +
+        '<div class="hintline">制限すると、ほかの人は「完了」にはできますが消せません。' +
+        '内容を開いて「削除を依頼」を押すと、管理者に通知が届きます。</div></div>' +
+      '<div class="grid2">' +
+        '<div class="f"><label>集金した現金を「預りすぎ」と警告する日数</label>' +
+          '<input type="number" min="1" value="'+(DB.cfg.cashDays||7)+'"'+(isAdmin()?'':' disabled') +
+          ' onchange="DB.cfg.cashDays=+this.value||7;save();render()">' +
+          '<span class="hintline">集金日からこの日数を過ぎて会社へ納金されていないと、赤で表示します。</span></div>' +
+        '<div class="f"><label>削除済み・完了の保管日数（ToDo）</label>' +
+          '<input type="number" min="1" value="'+keepDays()+'"'+(isAdmin()?'':' disabled') +
+          ' onchange="DB.cfg.keepDays=+this.value||30;save();render()">' +
+          '<span class="hintline">案件は自動では消えません（「削除済み」にずっと残ります）。</span></div>' +
+      '</div>' +
+      '<div class="hintline">■ 消しても必ず残るもの：<b>受付№</b>（欠番でわかる）／<b>削除済み案件</b>（元に戻せる）／' +
+      '<b>変更履歴</b>（誰がいつ何を変えたか。Googleスプレッドシートにも追記されます）</div>' +
+      '</div></section>';
+}
+/* 管理者ログインの状態（誰にでも見える。中身は出さない） */
+function loginCfgHtml(){
+  const has = hasAdminPw(), ok = isAdmin();
+  return '<section class="panel"><header><h2>管理者ログイン</h2>' +
+    '<span class="hint">' + (ok ? '管理者としてログイン中' : '管理者（'+esc(adminNames())+'）だけが使えます') + '</span>' +
+    '<div class="sp"></div>' +
+    (ok ? '<button class="btn sm" onclick="openPw()">パスワードを変更</button>' +
+          '<button class="btn sm" onclick="adminLogout()">ログアウト</button>'
+        : (has ? '<button class="btn sm pri" onclick="askLogin(admins()[0])">ログイン</button>'
+               : '<button class="btn sm pri" onclick="openPw()">パスワードを設定</button>')) +
+    '</header><div class="pad">' +
+    (!has ? '<div class="hintline" style="color:var(--danger)"><b>⚠ まだ管理者パスワードが設定されていません。</b><br>' +
+      '設定するまでは、誰でも操作者を「'+esc(adminNames())+'」に切り替えて、消す操作ができてしまいます。' +
+      '<b>いちばん最初に設定してください。</b></div>'
+     : '<div class="hintline">操作者を「'+esc(adminNames())+'」に切り替えるには、IDとパスワードが必要です。' +
+       'ほかの担当者は、自分の名前を選ぶだけで、いままでどおりお使いいただけます。<br>' +
+       'ログインした端末は30日間おぼえます。共用のパソコンでは、使い終わったら「ログアウト」を押してください。</div>') +
+    '</div></section>';
+}
 function addStaff(){
   const mx = DB.staff.reduce((a,s) => { const n = stOrd(s); return n < 999 ? Math.max(a, n) : a; }, -1);
   DB.staff.push({id:uid('s'), name:'新規', full:'', role:'', color:'#6b7280', active:true, ord: mx + 1});
@@ -3015,7 +3329,7 @@ function drawJob(){
 function jobTabInfo(){
   return '<div class="grid2">' +
       f('受付№','<input value="'+esc(M.code)+'" oninput="M.code=this.value">') +
-      f('区分','<select onchange="M.cat=this.value">'+Object.keys(CATS).map(c=>'<option'+(M.cat===c?' selected':'')+'>'+c+'</option>').join('')+'</select>') +
+      f('区分','<select onchange="M.cat=this.value">'+catOptions(M.cat)+'</select>') +
     '</div>' +
     f('顧客・現場名','<input value="'+esc(M.customer)+'" oninput="M.customer=this.value" placeholder="例）○○マンション 203号室">') +
     f('住所','<div style="display:flex;gap:6px">' +
@@ -3301,7 +3615,7 @@ function drawSch(){
     '<div class="grid2">' +
       f('関連する案件','<select onchange="M.jobId=this.value;syncJob()"><option value="">（なし）</option>' +
         liveJobs().map(j=>'<option value="'+j.id+'"'+(M.jobId===j.id?' selected':'')+'>'+esc(j.code+' '+j.customer)+'</option>').join('')+'</select>') +
-      f('区分','<select onchange="M.cat=this.value;drawSch()">'+Object.keys(CATS).map(c=>'<option'+(M.cat===c?' selected':'')+'>'+c+'</option>').join('')+'</select>') +
+      f('区分','<select onchange="M.cat=this.value;drawSch()">'+catOptions(M.cat)+'</select>') +
     '</div>' +
     '<div class="sec"><h4>担当者（複数選択できます）<span class="sp"></span>' +
       '<span class="hintline">'+(M.who.length?esc(whoNames(M.who))+'（'+M.who.length+'名）':'未割当')+'</span></h4>' +
@@ -3703,8 +4017,8 @@ function applySetupLink(){
   if(!c || !c.u) return false;
   DB.cfg.gasUrl = c.u; DB.cfg.gasToken = c.t || '';
   let full = false;
-  if(c.n && DB.staff.some(x => x.id === c.n && x.active !== false)){
-    DB.cfg.actor = c.n; DB.cfg.me = c.n;
+  if(c.n && !devGet().actor && DB.staff.some(x => x.id === c.n && x.active !== false)){
+    DB.cfg.actor = c.n; DB.cfg.me = c.n; devSet({actor:c.n, me:c.n, mode:(c.m === 'all' ? 'all' : 'me')});
     DB.cfg.mode = (c.m === 'all' ? 'all' : 'me');
     DB.cfg.setupDone = true; DB.cfg.seen = true;
     full = true;                     // 名前まで入っている＝設定画面は出さない
@@ -3844,6 +4158,7 @@ function setActorDefault(){
 function wizDone(){
   DB.cfg.actor = W.me; S.me = W.me; DB.cfg.me = W.me;
   DB.cfg.mode = W.mode; S.mode = W.mode;
+  devSet({actor:W.me, me:W.me, mode:W.mode});
   DB.cfg.gasUrl = W.url; DB.cfg.gasToken = W.token; DB.cfg.setupDone = true; DB.cfg.seen = true;
   save(); closeM(); render(); startAutoSync();
   toast('設定が完了しました');
@@ -3902,6 +4217,7 @@ if(location.search && /[?&](v|_c)=/.test(location.search))
   try{ history.replaceState(null, '', location.pathname + location.hash); }catch(e){}
 purgeOld();
 useBuiltin_(DB);
+devApply(DB);                          /* この端末で前回選んだ操作者・担当者を戻す */
 const fromLink = applySetupLink();
 if(!DB.cfg.actor) setActorDefault();   /* 名前を選ばなくても、そのまま使える */
 save();          // 初回に更新時刻の基準を作る
