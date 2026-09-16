@@ -99,10 +99,19 @@ html[data-theme="dark"] .modesw button.on{color:var(--tx)}
 /* ---------- main ---------- */
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
 .top{display:flex;align-items:center;gap:14px;padding:18px 22px 10px;flex-wrap:wrap;position:relative}
-.titlebtn{display:flex;align-items:center;gap:9px;background:none;border:none;padding:4px 8px;margin:-4px -8px;
-  border-radius:10px;cursor:pointer;text-align:left;color:inherit;font:inherit}
-.titlebtn:hover{background:var(--line-2)}
-.titlebtn .caret{font-size:14px;color:var(--tx-3);margin-left:2px}
+/* 画面名は「押せるボタン」に見せる（タップで画面を切り替えられると気づけるように） */
+.titlebtn{display:flex;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--line);
+  padding:7px 12px 7px 9px;margin:0;border-radius:12px;cursor:pointer;text-align:left;color:inherit;font:inherit;
+  box-shadow:var(--sh);transition:background .12s,border-color .12s,box-shadow .12s}
+.titlebtn:hover{background:var(--line-2);border-color:var(--navy);box-shadow:var(--sh-2)}
+.titlebtn:active{transform:translateY(1px)}
+.titlebtn .tbic{flex:none;width:32px;height:32px;border-radius:9px;background:var(--navy);color:#fff;
+  display:grid;place-items:center;font-size:15px}
+.titlebtn .caret{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;
+  background:var(--line-2);color:var(--tx-2);font-size:11px;margin-left:9px;vertical-align:2px}
+.titlebtn:hover .caret{background:var(--navy);color:#fff}
+.titlebtn .sw{display:block;font-size:10.5px;font-weight:700;color:var(--accent-d);letter-spacing:.04em}
+@media(max-width:700px){ .titlebtn{padding:6px 10px 6px 7px} .titlebtn .tbic{width:28px;height:28px;font-size:14px} }
 .vmenu{position:absolute;top:100%;left:16px;z-index:850;background:var(--panel);border:1px solid var(--line);
   border-radius:12px;box-shadow:var(--sh-2);padding:6px;min-width:250px;max-width:calc(100% - 32px)}
 .vmenu button{display:flex;width:100%;align-items:center;gap:10px;background:none;border:none;cursor:pointer;
@@ -348,6 +357,16 @@ tbody tr:hover{background:var(--line-2)}
 .bandrow b{font-size:13px}
 .bandrow .mt{font-size:11.5px;color:var(--tx-3)}
 .bandrow .sp{margin-left:auto}
+/* 時刻を5分きざみで送る */
+.tspin{display:flex;align-items:stretch;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.tspin input{flex:1;min-width:0;border:none!important;border-radius:0!important;text-align:center;font-variant-numeric:tabular-nums;
+  font-size:16px;font-weight:600;padding:9px 2px;background:none}
+.tspin input:focus{outline:2px solid var(--navy);outline-offset:-2px}
+.tspin button{flex:none;width:42px;background:var(--line-2);color:var(--tx-2);font-size:19px;font-weight:700;line-height:1;
+  border:none;cursor:pointer;touch-action:manipulation}
+.tspin button:hover{background:var(--navy);color:#fff}
+.tspin button:active{transform:scale(.94)}
+@media(max-width:700px){ .tspin button{width:52px;font-size:22px} .tspin input{font-size:17px;padding:11px 2px} }
 .bell{position:relative;padding:9px 12px}
 .bellct{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;border-radius:10px;background:var(--danger);
   color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 5px}
@@ -517,11 +536,30 @@ function importGTasks(d, owner){
    ============================================================ */
 const BUILTIN_URL   = 'https://script.google.com/macros/s/AKfycbxmxEyqeWQzVfJzmQ4-xrkWS6suvynEjIhwpl7LeoYAHgdIg-vxy8pBIFTZJaT-uYHM/exec';
 const BUILTIN_TOKEN = 'kongo2026';
+/* 取り込むGoogleカレンダー（担当者ID → カレンダーID）。入力しなくても最初から入っています */
+const BUILTIN_CAL = {
+  s1: 'yutorio.design@gmail.com',   /* 木村 */
+  s2: 'okahara.kongo@gmail.com'     /* 岡原 */
+};
+const CAL_SEED = 'c1';              /* 既定を入れ直したいときは、この印を変える */
+/* load() は nowISO より前に動くので、読み込み中はこちらを使う（TDZ回避） */
+const stampNow_ = () => new Date().toISOString();
 function useBuiltin_(d){
-  if(!BUILTIN_URL || !d || !d.cfg) return;
-  if(!d.cfg.gasUrl){
+  if(!d || !d.cfg) return;
+  if(BUILTIN_URL && !d.cfg.gasUrl){
     d.cfg.gasUrl = BUILTIN_URL; d.cfg.gasToken = BUILTIN_TOKEN;
     d.cfg.setupDone = true; d.cfg.seen = true;
+  }
+  /* 木村・岡原のカレンダーは固定。空になっていたら、開くたびに必ず入れ直す */
+  d.cfg.cal = d.cfg.cal || {};
+  Object.keys(BUILTIN_CAL).forEach(k => { if(!d.cfg.cal[k]) d.cfg.cal[k] = BUILTIN_CAL[k]; });
+  /* お知らせメールの宛先も、空のときだけ入れておく（こちらは1回だけ） */
+  if(d.cfg.calSeed !== CAL_SEED){
+    d.cfg.calSeed = CAL_SEED;
+    Object.keys(BUILTIN_CAL).forEach(k => {
+      const st0 = (d.staff||[]).find(x => x.id === k);
+      if(st0 && !st0.mail){ st0.mail = BUILTIN_CAL[k]; st0._u = stampNow_(); }
+    });
   }
 }
 
@@ -573,6 +611,7 @@ function initSeq(d){
   const mx = ns.length ? Math.max.apply(null, ns) : 0;
   d.cfg.seqFrom = mx; d.cfg.seqNo = mx;
 }
+let LOAD_ERR = '';   /* 読み込み中に起きた不具合（画面に出して気づけるように） */
 function load(){
   try{
     const raw = localStorage.getItem(KEY);
@@ -611,13 +650,13 @@ function load(){
     /* 担当者の追加と並び順（何度読み込んでも同じ結果になるように） */
     {
       const kw = d.staff.find(x => x.id === 's6');
-      if(kw && kw.name === '川崎'){ kw.name = '事務所'; kw._u = nowISO(); }
+      if(kw && kw.name === '川崎'){ kw.name = '事務所'; kw._u = stampNow_(); }
       const k = d.staff.find(x => x.id === 's1');
-      if(k && k.full === '木村 大吾'){ k.full = ''; k._u = nowISO(); }
+      if(k && k.full === '木村 大吾'){ k.full = ''; k._u = stampNow_(); }
       if(!d.staff.some(x => x.id === 's7'))
-        d.staff.push({id:'s7', name:'今村', full:'', role:'', mail:'', color:'#0ea5e9', active:true, ord:6, _u:nowISO()});
+        d.staff.push({id:'s7', name:'今村', full:'', role:'', mail:'', color:'#0ea5e9', active:true, ord:6, _u:stampNow_()});
       if(!d.staff.some(x => x.id === 's8'))
-        d.staff.push({id:'s8', name:'川崎', full:'', role:'', mail:'', color:'#b45309', active:true, ord:7, _u:nowISO()});
+        d.staff.push({id:'s8', name:'川崎', full:'', role:'', mail:'', color:'#b45309', active:true, ord:7, _u:stampNow_()});
       d.staff.sort((a,b) => stOrd(a) - stOrd(b));
       d.staffRev = 'r5';
     }
@@ -626,7 +665,20 @@ function load(){
     d.todos.forEach(t => { if(!Array.isArray(t.who)) t.who = t.staffId ? [t.staffId] : []; if(!Array.isArray(t.subs)) t.subs = [];
       if(typeof t.cat !== 'string') t.cat = ''; });
     return d;
-  }catch(e){ return markSeed(seed()); }
+  }catch(e){
+    /* ここで作りかけのデータを捨てると、端末の設定ごと消えてしまう。
+       壊れて読めないときだけ初期値に戻す。 */
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw){
+        const d = JSON.parse(raw);
+        LOAD_ERR = String((e && e.message) || e);
+        return d;
+      }
+    }catch(e2){}
+    LOAD_ERR = String((e && e.message) || e);
+    return markSeed(seed());
+  }
 }
 /* 同期対象のコレクション */
 const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans','scats','sec'];
@@ -1419,12 +1471,33 @@ function syncBtn(){
 /* 同期の状態カード（本日のボードと設定に出ます） */
 /* 端末に保存できていないときの注意（原因がわからないまま設定が消えるのを防ぐ） */
 function saveWarnHtml(){
+  let h = '';
+  if(LOAD_ERR)
+    h += '<section class="panel" style="border-color:var(--warn)"><header>' +
+      '<h2 style="color:var(--warn)">⚠ データの読み込みで問題が起きました</h2></header>' +
+      '<div class="pad hintline">できるところまで読み込んでいます。表示がおかしいときは、' +
+      '同期してから開き直してください。（内容：'+esc(LOAD_ERR)+'）</div></section>';
+  return h + saveWarnHtml_();
+}
+function saveWarnHtml_(){
   if(SAVE_OK) return '';
   return '<section class="panel" style="border-color:var(--danger)"><header>' +
     '<h2 style="color:var(--danger)">⚠ この端末にデータを保存できていません</h2></header>' +
     '<div class="pad hintline">ブラウザの保存領域がいっぱいか、プライベートモードの可能性があります。' +
     '入力した内容は同期で残りますが、この端末では消えることがあります。' +
     'ブラウザの履歴・サイトデータを整理するか、別のブラウザでお試しください。</div></section>';
+}
+/* 同期の状態を、本日の予定などと並べて小さく出す */
+function syncStat(){
+  if(!Sync.ready())
+    return '<div class="stat" style="border-left-color:var(--tx-3)"><div class="l">同期</div>' +
+      '<div class="v" style="font-size:17px">未設定</div></div>';
+  const ok = !!DB.cfg.lastSync;
+  const col = Sync.status === 'エラー' ? 'var(--danger)' : (ok ? 'var(--ok)' : 'var(--warn)');
+  return '<div class="stat click" style="border-left-color:'+col+'" onclick="doSync()" title="押すと、ほかの端末とGoogleカレンダーの最新を取り込みます">' +
+    '<div class="l">同期<span class="chev">⟳</span></div>' +
+    '<div class="v" style="font-size:17px">' + (ok ? esc(jTime(DB.cfg.lastSync)) : '未同期') +
+    '<small>' + (ok ? esc(agoLabel(DB.cfg.lastSync)) : 'いま押す') + '</small></div></div>';
 }
 function syncCard(){
   if(!Sync.ready())
@@ -1574,14 +1647,16 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.3</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.5</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
       '<div class="top">' +
         '<button class="btn sm menu-btn" onclick="S.sideOpen=!S.sideOpen;render()">☰</button>' +
         '<button class="titlebtn" onclick="toggleVmenu(event)" title="タップして画面を切り替え">' +
-          '<div><h1>'+v.label+'<span class="caret">▾</span></h1>' +
+          '<span class="tbic">'+v.ic+'</span>' +
+          '<div><span class="sw">画面を切り替える</span>' +
+          '<h1>'+v.label+'<span class="caret">▾</span></h1>' +
           '<p>'+(isMe() ? esc((meStaff()||{}).full || (meStaff()||{}).name || '') + ' さんの表示' : v.sub)+'</p></div></button>' +
         vmenuHtml() +
         '<div class="sp"></div>' +
@@ -1604,6 +1679,7 @@ function setActor(id){
 function resetSync(){
   DB.cfg.gasUrl = BUILTIN_URL; DB.cfg.gasToken = BUILTIN_TOKEN;
   DB.cfg.setupDone = true; DB.cfg.seen = true;
+  DB.cfg.cal = {}; DB.cfg.calSeed = ''; useBuiltin_(DB);
   save(); render(); startAutoSync(); toast('組み込みの設定に戻しました');
   doSync();
 }
@@ -1781,14 +1857,15 @@ function viewBoard(){
         (allDay.length ? '<br>' + allDay.slice(0,2).map(x =>
           '<span class="tag n" style="font-size:9.5px;cursor:pointer" onclick="'+(x.ext?'openExt(\''+x.id+'\')':'openSch(\''+x.id+'\')')+'" title="'+esc(x.title)+'">' +
           (x.ext?'📅 ':'●')+esc(x.title.slice(0,10))+'</span>').join(' ') + (allDay.length>2?'<span class="tag n" style="font-size:9.5px">他'+(allDay.length-2)+'</span>':'') : '') + '</div>' +
-      '<div class="cnt">'+own.length+'件<br>'+(mins/60).toFixed(mins%60?1:0)+'h'+(tmin?'<br><span style="color:var(--tx-3)">移動'+tmin+'分</span>':'')+
+      '<div class="cnt">'+own.length+'件'+
         (nLane>1?'<br><span style="color:var(--danger)">'+nLane+'段</span>':'')+'</div></div>' +
       '<div class="track" style="--colw:'+(100/cols)+'%">'+bars+nowBar+'</div></div>';
   }).join('');
 
   document.getElementById('body').innerHTML =
-    syncCard() +
+    saveWarnHtml() +
     '<div class="stats">' +
+      syncStat() +
       stat('本日の案件', day.filter(e=>!e.ext).length, '件', 'var(--info)', 'day') +
       stat('本日の至急', urgent, '件', urgent?'var(--danger)':'var(--ok)', 'urgent') +
       stat('未割り当て', unassigned.length, '件', unassigned.length?'var(--accent)':'var(--ok)', 'unassigned') +
@@ -1861,7 +1938,7 @@ function viewBoardMe(){
   }).join('');
 
   document.getElementById('body').innerHTML =
-    syncCard() +
+    saveWarnHtml() +
     '<div class="meband">' + avatar(me) + '<div><b>'+esc((me||{}).full||(me||{}).name||'')+'</b>' +
       '<div style="font-size:11.5px;color:var(--tx-3)">'+fmtD(d)+
       (atd && atd.type!=='出勤' ? '　<span class="tag b">'+esc(atd.type)+'</span>' : '')+'</div></div>' +
@@ -1869,10 +1946,8 @@ function viewBoardMe(){
       '<button class="btn sm" onclick="openSch(null,null,\''+d+'\',\''+S.me+'\')">＋ 予定</button>' +
       '<button class="btn sm" onclick="openTodo()">＋ ToDo</button></div>' +
     '<div class="stats">' +
+      syncStat() +
       stat('本日の予定', own.length, '件', 'var(--info)', 'day') +
-      stat('作業時間', (work/60).toFixed(work%60?1:0), 'h', 'var(--ok)', 'day') +
-      stat('移動時間', mv, '分', mv?'var(--warn)':'var(--ok)', 'move') +
-      stat('拘束時間', bind ? (bind/60).toFixed(bind%60?1:0) : 0, 'h', 'var(--navy)', 'day') +
       stat('未完了ToDo', td.length, '件', td.length?'var(--warn)':'var(--ok)', 'todo') +
     '</div>' +
     (allDayItems(d, S.me).length ? '<div class="hintline" style="padding:0 2px">' +
@@ -3033,7 +3108,8 @@ function viewCfg(){
       (DB.cfg.calAt ? '<span class="tag g">'+(DB.gcal||[]).length+'件 取得済 '+esc(jDay(DB.cfg.calAt))+' '+esc(jTime(DB.cfg.calAt))+'</span>' : '<span class="tag n">未取得</span>') +
       '<div class="sp"></div><button class="btn sm" onclick="loadCals()">カレンダー一覧を取得</button>' +
       '<button class="btn sm pri" onclick="pullCal()">いま取り込む</button></header><div class="pad">' +
-      '<div class="hintline" style="margin-bottom:10px">担当者ごとにGoogleカレンダーを指定すると、その予定がボードに<b>📅 グレーの帯</b>で表示され、<b>時間の重複チェック</b>に含まれます。カレンダー側の予定はアプリからは変更できません（読み取り専用）。</div>' +
+      '<div class="hintline" style="margin-bottom:10px">担当者ごとにGoogleカレンダーを指定すると、その予定がボードに<b>📅 グレーの帯</b>で表示され、<b>時間の重複チェック</b>に含まれます。カレンダー側の予定はアプリからは変更できません（読み取り専用）。<br>' +
+      '<b>木村・岡原の2名は固定です（「固定」の印）。</b>どの端末で開いても入力は不要で、空になっても開き直せば元に戻ります。ほかの方は、カレンダーIDを入れるか「カレンダー一覧を取得」から選んでください。</div>' +
       '<div id="calmap">' + calMapHtml() + '</div>' +
       '<div class="grid2" style="margin-top:12px">' +
         '<div class="f"><label>取り込む範囲（過去）</label><input type="number" min="0" max="90" value="'+(DB.cfg.calBack||7)+'" onchange="DB.cfg.calBack=+this.value||0;save()"><span class="hintline">日前まで</span></div>' +
@@ -3100,8 +3176,10 @@ function calMapHtml(){
           '</select>'
         : '<input value="'+esc(cur)+'" placeholder="カレンダーID（例：xxx@gmail.com）" onchange="setCal(\''+s0.id+'\',this.value.trim())" ' +
           'style="flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px">';
+      const std = !!BUILTIN_CAL[s0.id];
       return '<div style="display:flex;align-items:center;gap:8px">' + avatar(s0) +
-        '<span style="width:44px;font-size:12.5px">'+esc(s0.name)+'</span>' + sel + '</div>';
+        '<span style="width:44px;font-size:12.5px">'+esc(s0.name)+'</span>' + sel +
+        (std ? '<span class="tag g" style="flex:none" title="空にしても、開き直すと元に戻ります">固定</span>' : '') + '</div>';
     }).join('') + '</div>';
 }
 function setCal(staffId, calId){
@@ -3692,8 +3770,14 @@ function drawSch(){
         '</div>'
       : '<div class="grid3">' +
       f('日付','<input id="t_date" type="date" value="'+M.date+'" onchange="M.date=this.value;drawTime(\'date\')">') +
-      f('開始','<input id="t_start" type="time" value="'+M.start+'" onchange="setStart(this.value,1)">') +
-      f('終了','<input id="t_end" type="time" value="'+M.end+'" onchange="setEnd(this.value,1)">') +
+      f('開始','<div class="tspin"><button type="button" onclick="bumpTime(\'start\',-STEP_MIN)" title="5分もどす">−</button>' +
+        '<input id="t_start" type="time" step="300" value="'+M.start+'" onchange="setStart(this.value,1)" ' +
+        'onwheel="wheelTime(event,\'start\')">' +
+        '<button type="button" onclick="bumpTime(\'start\',STEP_MIN)" title="5分すすめる">＋</button></div>') +
+      f('終了','<div class="tspin"><button type="button" onclick="bumpTime(\'end\',-STEP_MIN)" title="5分もどす">−</button>' +
+        '<input id="t_end" type="time" step="300" value="'+M.end+'" onchange="setEnd(this.value,1)" ' +
+        'onwheel="wheelTime(event,\'end\')">' +
+        '<button type="button" onclick="bumpTime(\'end\',STEP_MIN)" title="5分すすめる">＋</button></div>') +
     '</div>' +
     f('所要時間　<b id="durlab" style="color:var(--tx)">'+durLabel(durMin())+'</b>',
       '<div class="pick plain" id="durbtns" style="gap:6px">' +
@@ -3701,6 +3785,8 @@ function drawSch(){
           '<button type="button" data-m="'+m+'" class="'+(durMin()===m?'on':'')+'" onclick="setDur('+m+')">'+durLabel(m)+'</button>').join('') +
         '<button type="button" onclick="bumpEnd(-15)">−15分</button>' +
         '<button type="button" onclick="bumpEnd(15)">＋15分</button>' +
+        '<button type="button" onclick="bumpEnd(-5)">−5分</button>' +
+        '<button type="button" onclick="bumpEnd(5)">＋5分</button>' +
       '</div>')) +
     '<div class="sec"><h4>'+(M.allDay?'現場の住所':'移動時間')+'<span class="sp"></span>' +
       (M.allDay?'':'<button class="btn sm pri" onclick="calcNow()">この住所で計算</button>')+'</h4>' +
@@ -3712,7 +3798,7 @@ function drawSch(){
         f('復路（分）','<input id="t_back" type="number" min="0" value="'+(M.back|0)+'" onchange="M.back=+this.value||0;drawTime()">') +
       '</div>' +
       '<div class="hintline" id="tmsg">'+(M._travelMsg||'出発地：'+esc(DB.cfg.origin))+'</div>' +
-      '<div class="hintline" id="occline">'+occHtml()+'</div>') +
+      '') +
     '</div>' +
     f('参加者・同行者（社外を含む）','<input value="'+esc(M.guests||'')+'" oninput="M.guests=this.value" placeholder="例）元請け 山田様、メーカー担当">') +
     f('メモ','<textarea style="min-height:88px" oninput="M.note=this.value">'+esc(M.note)+'</textarea>') +
@@ -3745,6 +3831,29 @@ function setEnd(v, fromInput){
   drawTime(fromInput ? 'end' : null);
 }
 function setDur(m){ M.end = toHM(clamp(toMin(M.start) + m, 0, 1439)); drawTime(); }
+/* ---------- 時刻を5分きざみで送る（＋−ボタン・スクロール・上下キー） ---------- */
+const STEP_MIN = 5;
+/* きりの悪い時刻は、送る方向のいちばん近い5分に寄せる */
+function stepHM(hm, n){
+  const cur = toMin(hm);
+  const m = (cur % STEP_MIN === 0)
+    ? cur + n
+    : (n > 0 ? Math.ceil(cur / STEP_MIN) * STEP_MIN : Math.floor(cur / STEP_MIN) * STEP_MIN);
+  return toHM(clamp(m, 0, 1435));
+}
+function bumpTime(which, n){
+  if(!M) return;
+  if(which === 'start') setStart(stepHM(M.start, n));
+  else                  setEnd(stepHM(M.end, n));
+  /* 入力欄に触っている最中でも、見た目を必ず合わせる */
+  const el = document.getElementById(which === 'start' ? 't_start' : 't_end');
+  if(el) el.value = (which === 'start' ? M.start : M.end);
+}
+function wheelTime(e, which){
+  if(!M) return;
+  e.preventDefault();
+  bumpTime(which, e.deltaY < 0 ? STEP_MIN : -STEP_MIN);
+}
 
 /* 拘束時間の1行 */
 function occHtml(){
@@ -4232,7 +4341,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '3.3';
+const APP_VER = '3.5';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
