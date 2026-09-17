@@ -268,17 +268,38 @@ tbody tr:hover{background:var(--line-2)}
 
 /* ---------- modal ---------- */
 .ov{position:fixed;inset:0;background:rgba(16,24,40,.5);backdrop-filter:blur(2px);z-index:60;
-  display:grid;place-items:center;padding:20px}
+  display:grid;place-items:center;padding:20px;overflow-y:auto;overscroll-behavior:contain}
 .modal{background:var(--panel);border-radius:16px;box-shadow:var(--sh-2);width:100%;max-width:660px;
   max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
 .modal.wide{max-width:820px}
-.modal>header{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal>header{flex:none;display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)}
 .modal>header h3{margin:0;font-size:16px}
 .modal>header .x{margin-left:auto;width:32px;height:32px;border-radius:8px;color:var(--tx-3);font-size:18px}
 .modal>header .x:hover{background:var(--line-2)}
-.modal .content{padding:18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
-.modal>footer{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--line);background:var(--line-2)}
+/* 中身だけが伸び縮みして、保存ボタンの帯は必ず下に残る（min-height:0 が要） */
+.modal .content{padding:18px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:14px}
+.modal>footer{flex:none;display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--line);background:var(--line-2);
+  padding-bottom:calc(14px + env(safe-area-inset-bottom, 0px))}
 .modal>footer .sp{margin-left:auto}
+/* スマホのアドレスバーぶんを除いた「実際に見えている高さ」に合わせる */
+@supports (height: 100dvh){
+  .ov{height:100dvh}
+  .modal{max-height:92dvh}
+}
+/* スマホでは画面下から出るシートにして、保存ボタンをいつも指の届く位置に */
+@media(max-width:700px){
+  .ov{padding:0;place-items:end center}
+  .modal{max-width:none;border-radius:16px 16px 0 0;max-height:94vh}
+  .modal>header{padding:14px 16px}
+  .modal .content{padding:14px 16px}
+  .modal>footer{padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px))}
+  .modal>footer .btn{flex:1;min-width:0;padding:12px 10px;font-size:14px}
+  .modal>footer .btn.dg{flex:0 0 auto}
+}
+@supports (height: 100dvh){
+  @media(max-width:700px){ .modal{max-height:94dvh} }
+}
 .sec{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
 .sec>h4{margin:0;font-size:12.5px;color:var(--tx-2);display:flex;align-items:center;gap:8px}
 .sec>h4 .sp{margin-left:auto}
@@ -1654,7 +1675,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.6</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.7</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -4352,7 +4373,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '3.6';
+const APP_VER = '3.7';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
