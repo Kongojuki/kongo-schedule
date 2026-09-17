@@ -25,7 +25,7 @@ html[data-theme="dark"]{
 html[data-view="board"] { --bg:#eef7e6 }   /* 本日のボード：薄い黄緑 */
 html[data-view="week"]  { --bg:#e8f3fc }   /* 週間予定：薄い水色 */
 html[data-view="gantt"] { --bg:#efedfb }   /* 月間工程表：薄い藤色 */
-html[data-view="jobs"]  { --bg:#fceef3 }   /* 受付・案件：薄いピンク */
+html[data-view="jobs"]  { --bg:#fceef3 }   /* 案件：薄いピンク */
 html[data-view="todo"]  { --bg:#fdf1e4 }   /* ToDo：薄いオレンジ */
 html[data-view="sales"] { --bg:#fbf8e2 }   /* 売掛会議：薄いクリーム */
 html[data-view="report"]{ --bg:#f6f2ea }   /* 日報：薄いベージュ */
@@ -149,6 +149,13 @@ html[data-theme="dark"] .modesw button.on{color:var(--tx)}
 .btn.gh{background:transparent;box-shadow:none}
 .btn.sm{padding:6px 11px;font-size:12px;border-radius:8px;box-shadow:none}
 .btn.dg{color:var(--danger);border-color:#f0c9c9}
+/* 追加ボタン（受付・予定・ToDo）を同じ大きさで並べる */
+.btn.add{padding:11px 18px;font-size:14px;font-weight:700;border-radius:11px}
+.btn.pri2{background:var(--info);border-color:var(--info);color:#fff;box-shadow:0 2px 8px rgba(47,111,208,.32)}
+.btn.pri2:hover{background:#2560b4}
+.btn.pri3{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 2px 8px rgba(34,160,107,.32)}
+.btn.pri3:hover{background:#1b8757}
+@media(max-width:700px){ .btn.add{padding:10px 13px;font-size:13px} }
 .hintbar{position:fixed;left:12px;right:12px;bottom:12px;z-index:899;display:flex;gap:10px;
   align-items:center;justify-content:center;flex-wrap:wrap;background:var(--panel);color:var(--tx);
   border:1px solid var(--line);padding:10px 14px;border-radius:12px;box-shadow:var(--sh-2);font-size:13px}
@@ -1568,7 +1575,7 @@ const VIEWS = [
   {id:'board', label:'本日のボード', ic:'▦', sub:'担当者ごとの予定を一覧'},
   {id:'week',  label:'週間予定',     ic:'▤', sub:'1週間の割り当て状況'},
   {id:'gantt', label:'月間工程表',   ic:'▬', sub:'長い現場の期間と担当者'},
-  {id:'jobs',  label:'受付・案件',   ic:'≡', sub:'電話受付から完了までの管理'},
+  {id:'jobs',  label:'案件',   ic:'≡', sub:'電話受付から完了までの管理'},
   {id:'todo',  label:'ToDo',        ic:'✓', sub:'カテゴリー別のタスク管理'},
   {id:'sales', label:'売掛会議',     ic:'¥', sub:'未請求・未入金・現金の点検'},
   {id:'report',label:'日報',         ic:'▭', sub:'作業実績の記録'},
@@ -1647,7 +1654,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.5</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.6</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1700,31 +1707,35 @@ function setLock(k, v){
 }
 function toggleTheme(){ DB.cfg.theme = (DB.cfg.theme==='dark'?'light':'dark'); devSet({theme:DB.cfg.theme}); save(); render(); }
 
+/* 受付・予定・ToDo を、同じ大きさで並べて出す */
+function addBtns(){
+  return '<button class="btn pri add" onclick="openJob()">＋ 受付を登録</button>' +
+         '<button class="btn pri2 add" onclick="openSch()">＋ 予定</button>' +
+         '<button class="btn pri3 add" onclick="openTodo()">＋ ToDo</button>';
+}
 function topRight(){
   if(S.view === 'board') return dateNav(S.date, 'shiftDay') +
-    '<button class="btn" onclick="S.date=today();render()">今日</button>' +
-    '<button class="btn pri" onclick="openJob()">＋ 受付を登録</button>';
+    '<button class="btn" onclick="S.date=today();render()">今日</button>' + addBtns();
   if(S.view === 'week'){
     const e = addD(S.wkStart, 6);
     return '<div class="datenav"><button onclick="S.wkStart=addD(S.wkStart,-7);render()">‹</button>' +
       '<div class="d"><b>'+fmtD(S.wkStart).split('（')[0]+' – '+fmtD(e).split('（')[0]+'</b><span>週間</span></div>' +
       '<button onclick="S.wkStart=addD(S.wkStart,7);render()">›</button></div>' +
-      '<button class="btn" onclick="S.wkStart=addD(today(),-((parseD(today()).getDay()+6)%7));render()">今週</button>' +
-      '<button class="btn pri" onclick="openSch()">＋ 予定を追加</button>';
+      '<button class="btn" onclick="S.wkStart=addD(today(),-((parseD(today()).getDay()+6)%7));render()">今週</button>' + addBtns();
   }
   if(S.view === 'gantt') return '<div class="datenav"><button onclick="shiftMonth(-1)">‹</button>' +
     '<div class="d"><b>'+S.month.replace('-','/')+'</b><span>月間工程表</span></div>' +
     '<button onclick="shiftMonth(1)">›</button></div>' +
     '<button class="btn" onclick="S.month=today().slice(0,7);render()">今月</button>' +
-    '<button class="btn pri" onclick="openSpan()">＋ 工事を追加</button>';
-  if(S.view === 'jobs') return '<button class="btn pri" onclick="openJob()">＋ 受付を登録</button>';
+    '<button class="btn pri add" onclick="openSpan()">＋ 工事を追加</button>' +
+    '<button class="btn pri2 add" onclick="openSch()">＋ 予定</button>';
+  if(S.view === 'jobs') return addBtns();
   if(S.view === 'sales') return '<div class="datenav"><button onclick="shiftMonth(-1)">‹</button>' +
     '<div class="d"><b>'+S.month.replace('-','/')+'</b><span>売掛会議</span></div>' +
     '<button onclick="shiftMonth(1)">›</button></div>' +
     '<button class="btn" onclick="S.month=today().slice(0,7);render()">今月</button>' +
     '<button class="btn pri" onclick="closeMonth()">この月を締める</button>';
-  if(S.view === 'todo') return '<button class="btn" onclick="openTplPick()">テンプレートから追加</button>' +
-                                '<button class="btn pri" onclick="openTodo()">＋ ToDoを追加</button>';
+  if(S.view === 'todo') return '<button class="btn" onclick="openTplPick()">テンプレートから追加</button>' + addBtns();
   if(S.view === 'report') return dateNav(S.date,'shiftDay') + '<button class="btn pri" onclick="openReport()">＋ 日報を書く</button>';
   if(S.view === 'atd') return dateNav(S.date,'shiftDay') + '<button class="btn pri" onclick="openAtd()">＋ 勤怠を登録</button>';
   return '';
@@ -2413,7 +2424,7 @@ function importExt(evId, staffId){
 }
 
 /* ============================================================
-   受付・案件
+   案件
    ============================================================ */
 /* 消された形跡・削除の依頼・削除済みの一覧（不正防止のための見張り） */
 function jobGuardHtml(){
@@ -2498,7 +2509,7 @@ function viewJobs(keepFocus){
       '</div></div></section>' +
 
     jobGuardHtml() +
-    '<section class="panel"><header><h2>'+(isMe()?'自分が関わる案件':'受付・案件')+'</h2><div class="sp"></div>' +
+    '<section class="panel"><header><h2>'+(isMe()?'自分が関わる案件':'案件')+'</h2><div class="sp"></div>' +
       '<div class="filters">' +
         '<input id="jq" placeholder="顧客名・住所で検索" value="'+esc(S.jobF.q)+'" oninput="S.jobF.q=this.value;viewJobs(true)">' +
         '<select onchange="S.jobF.st=this.value;viewJobs()">' +
@@ -3443,7 +3454,7 @@ function togWho(list, id){
 }
 
 /* ============================================================
-   受付・案件モーダル
+   案件モーダル
    ============================================================ */
 function openJob(id){
   const j = id ? JSON.parse(JSON.stringify(jobById(id))) : {id:'', code:nextCode(),
@@ -3656,7 +3667,7 @@ function delJob(){
   j.del = true; j.delAt = nowISO(); j.delBy = actor(); j.delByName = actorName(); j.delWhy = String(why).trim(); j.delReq = null;
   logIt('案件', j.id, j.customer+' '+j.title, '案件を削除済みへ', j.status, String(why).trim());
   save(); closeM(); render();
-  toast('削除済みに移しました（受付・案件の下にあります）');
+  toast('削除済みに移しました（案件の下にあります）');
 }
 /* 管理者以外は「依頼」だけできる（勝手に消せない） */
 function reqDelJob(){
@@ -3669,7 +3680,7 @@ function reqDelJob(){
   logIt('案件', j.id, j.customer+' '+j.title, '削除の依頼', j.status, String(why).trim());
   save(); closeM(); render(); toast('管理者に削除を依頼しました');
 }
-/* 受付・案件を、担当者のToDoに移す（移したら受付一覧からは外れます） */
+/* 案件を、担当者のToDoに移す（移したら受付一覧からは外れます） */
 let TT = null;
 function openToTodo(){
   const j = DB.jobs.find(x => x.id === M.id); if(!j) return;
@@ -3679,7 +3690,7 @@ function openToTodo(){
 }
 function drawToTodo(){
   shell('ToDoに移す',
-    '<div class="hintline">この受付をToDoに変えて、担当者に渡します。移したあとは<b>受付・案件の一覧には出なくなります</b>' +
+    '<div class="hintline">この受付をToDoに変えて、担当者に渡します。移したあとは<b>案件の一覧には出なくなります</b>' +
     '（金額・請求・入金の管理はそのまま残ります）。</div>' +
     f('やること','<input value="'+esc(TT.title)+'" oninput="TT.title=this.value">') +
     '<div class="sec"><h4>担当者（複数選べます）<span class="sp"></span>' +
@@ -4341,7 +4352,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '3.5';
+const APP_VER = '3.6';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
