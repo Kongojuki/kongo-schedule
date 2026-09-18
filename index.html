@@ -395,6 +395,25 @@ tbody tr:hover{background:var(--line-2)}
 .tspin button:hover{background:var(--navy);color:#fff}
 .tspin button:active{transform:scale(.94)}
 @media(max-width:700px){ .tspin button{width:52px;font-size:22px} .tspin input{font-size:17px;padding:11px 2px} }
+/* 全体検索 */
+.srchbtn{position:relative;padding:9px 12px;font-size:15px}
+.srchbar{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;
+  background:var(--panel);padding:10px 13px;box-shadow:var(--sh)}
+.srchbar input{flex:1;min-width:0;border:none!important;background:none;font-size:16px;padding:0;outline:none}
+.srchbar .ic{font-size:16px;color:var(--tx-3);flex:none}
+.srchbar .x{flex:none;width:28px;height:28px;border-radius:8px;color:var(--tx-3);font-size:17px}
+.srchbar .x:hover{background:var(--line-2)}
+.sgrp{margin-top:14px}
+.sgrp>h4{margin:0 0 7px;font-size:12px;color:var(--tx-2);display:flex;align-items:center;gap:8px}
+.sgrp>h4 b{background:var(--line-2);border-radius:999px;padding:1px 8px;font-size:11px;color:var(--tx-2)}
+.srow{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:10px 12px;
+  border:1px solid var(--line);border-radius:11px;background:var(--panel);cursor:pointer;margin-bottom:7px}
+.srow:hover{background:var(--line-2);border-color:var(--navy)}
+.srow i.dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:6px}
+.srow .bd{flex:1;min-width:0}
+.srow .ttl{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .meta{font-size:11.5px;color:var(--tx-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow mark{background:rgba(232,121,43,.28);color:inherit;border-radius:3px;padding:0 1px}
 .bell{position:relative;padding:9px 12px}
 .bellct{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;border-radius:10px;background:var(--danger);
   color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 5px}
@@ -1406,6 +1425,162 @@ function refreshNotes(prevCount){
   if(prevCount !== undefined && NOTES.length > prevCount) webNotify(NOTES.slice(0, NOTES.length - prevCount));
   return NOTES.length;
 }
+/* ============================================================
+   全体検索（案件・予定・ToDo・工事・日報・勤怠・担当者をまとめて探す）
+   ============================================================ */
+let SQ = '';                      /* いま入力されている言葉 */
+const SEARCH_MAX = 12;            /* 種類ごとの表示件数 */
+/* 探しやすいように、大文字小文字・全角半角のゆれを吸収する */
+function sNorm(v){
+  return String(v == null ? '' : v)
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[　]/g, ' ')
+    .toLowerCase();
+}
+const sHit = (hay, words) => { const h = sNorm(hay); return words.every(w => h.indexOf(w) >= 0); };
+/* 見つかった言葉に色を付ける */
+function sMark(text, words){
+  let h = esc(String(text == null ? '' : text));
+  words.forEach(w => {
+    if(!w) return;
+    const n = sNorm(h), out = [];
+    let i = 0, at;
+    while((at = n.indexOf(w, i)) >= 0){
+      out.push(h.slice(i, at), '<mark>', h.slice(at, at + w.length), '</mark>');
+      i = at + w.length;
+      if(w.length === 0) break;
+    }
+    out.push(h.slice(i));
+    h = out.join('');
+  });
+  return h;
+}
+/* 探す対象をぜんぶ集める */
+function searchAll(q){
+  const words = sNorm(q).split(/\s+/).filter(Boolean);
+  if(!words.length) return [];
+  const R = [], add = (g, color, o) => R.push(Object.assign({g, color}, o));
+
+  /* 案件（削除済みも含めるが、見える範囲だけ） */
+  const jobs = isAdmin() ? DB.jobs : DB.jobs.filter(j => !j.del || daysAgo(j.delAt) < DELETED_SHOW_DAYS);
+  jobs.forEach(j => {
+    const notes = (j.notes||[]).map(n => n.text||n.body||'').join(' ');
+    const pays  = (j.pays||[]).map(x => (x.memo||'') + ' ' + (x.way||'')).join(' ');
+    if(!sHit([j.code, j.customer, j.title, j.detail, j.address, j.phone, j.invNo, notes, pays].join(' '), words)) return;
+    add('案件', catColor(j.cat), {
+      title: (j.customer||'') + ' ' + (j.title||''),
+      meta: [j.code, j.status + (j.del ? '・削除済み' : ''), j.address, whoNames(j.owners)].filter(Boolean).join('　'),
+      go: "go('jobs');openJob('" + j.id + "')"
+    });
+  });
+  /* 予定 */
+  DB.sch.forEach(e => {
+    if(!sHit([e.title, e.note, e.address, e.guests, e.cat].join(' '), words)) return;
+    add('予定', catColor(e.cat), {
+      title: e.title || '（無題）',
+      meta: [fmtD(e.date), e.allDay ? '終日' : (e.start + '–' + e.end), whoNames(e.who), e.address].filter(Boolean).join('　'),
+      go: "S.date='" + e.date + "';go('board');openSch('" + e.id + "')"
+    });
+  });
+  /* ToDo */
+  DB.todos.forEach(t => {
+    const subs = (t.subs||[]).map(x => x.t || x.title || '').join(' ');
+    if(!sHit([t.title, t.memo, subs].join(' '), words)) return;
+    add('ToDo', tcatColor(t.cat), {
+      title: t.title || '（無題）',
+      meta: [t.done ? '完了' : (t.del ? 'ゴミ箱' : '未完了'), t.due ? '期限 ' + fmtD(t.due) : '', whoNames(t.who), tcatName(t.cat)].filter(Boolean).join('　'),
+      go: "go('todo');openTodo('" + t.id + "')"
+    });
+  });
+  /* 工事（月間工程表） */
+  (DB.spans||[]).forEach(p0 => {
+    if(!sHit([p0.title, p0.note, p0.cat].join(' '), words)) return;
+    add('工事', spanColor(p0), {
+      title: p0.title || '（無題）',
+      meta: [mdStr(p0.start) + '–' + mdStr(spanEnd(p0)), whoNames(p0.who)].filter(Boolean).join('　'),
+      go: "S.month='" + p0.start.slice(0,7) + "';go('gantt');openSpan('" + p0.id + "')"
+    });
+  });
+  /* 日報 */
+  (DB.reports||[]).forEach(r => {
+    if(!sHit([r.body, r.note].join(' '), words)) return;
+    add('日報', 'var(--tx-3)', {
+      title: (r.body || '').slice(0, 60) || '（本文なし）',
+      meta: [fmtD(r.date), whoNames(r.who), (r.hours || 0) + 'h'].filter(Boolean).join('　'),
+      go: "S.date='" + r.date + "';go('report');openReport('" + r.id + "')"
+    });
+  });
+  /* 勤怠・休暇 */
+  (DB.atd||[]).forEach(a => {
+    if(!sHit([a.type, a.note, (staffById(a.who)||{}).name].join(' '), words)) return;
+    add('勤怠', 'var(--info)', {
+      title: (staffById(a.who)||{}).name + '　' + (a.type||''),
+      meta: [fmtD(a.date), a.note].filter(Boolean).join('　'),
+      go: "S.date='" + a.date + "';go('atd');openAtd('" + a.who + "')"
+    });
+  });
+  /* 担当者 */
+  DB.staff.forEach(st => {
+    if(!sHit([st.name, st.full, st.mail].join(' '), words)) return;
+    add('担当者', st.color, {
+      title: st.full || st.name,
+      meta: [st.name, st.mail, st.active === false ? '非表示' : '在籍'].filter(Boolean).join('　'),
+      go: "go('cfg')"
+    });
+  });
+  return R;
+}
+function openSearch(q){
+  SQ = (q == null ? SQ : q) || '';
+  drawSearch();
+  setTimeout(() => { const i = document.getElementById('sq'); if(i){ i.focus(); i.select(); } }, 40);
+}
+function setSQ(v){
+  SQ = v;
+  const el = document.getElementById('sres');
+  if(el) el.innerHTML = searchResHtml();
+}
+function searchResHtml(){
+  const q = SQ.trim();
+  if(!q) return '<div class="hintline" style="margin-top:14px">顧客名・住所・電話番号・件名・メモ・受付№など、' +
+    '思い出せる言葉を入れてください。<b>案件・予定・ToDo・工事・日報・勤怠・担当者</b>をまとめて探します。<br>' +
+    'スペースで区切ると、その言葉を<b>すべて</b>含むものだけに絞れます。</div>';
+  const words = sNorm(q).split(/\s+/).filter(Boolean);
+  const all = searchAll(q);
+  if(!all.length) return '<div class="empty">「' + esc(q) + '」に当てはまるものは見つかりませんでした</div>';
+  const order = ['案件','予定','ToDo','工事','日報','勤怠','担当者'];
+  let h = '<div class="hintline" style="margin-top:12px">' + all.length + '件 見つかりました</div>';
+  order.forEach(g => {
+    const list = all.filter(x => x.g === g);
+    if(!list.length) return;
+    h += '<div class="sgrp"><h4>' + g + '<b>' + list.length + '</b></h4>' +
+      list.slice(0, SEARCH_MAX).map(x =>
+        '<button type="button" class="srow" onclick="SQ=\'\';closeM();' + x.go + '">' +
+        '<i class="dot" style="background:' + x.color + '"></i>' +
+        '<div class="bd"><div class="ttl">' + sMark(x.title, words) + '</div>' +
+        '<div class="meta">' + sMark(x.meta, words) + '</div></div></button>').join('') +
+      (list.length > SEARCH_MAX ? '<div class="hintline">ほか ' + (list.length - SEARCH_MAX) + '件（言葉を足すと絞れます）</div>' : '') +
+      '</div>';
+  });
+  return h;
+}
+function drawSearch(){
+  shell('ぜんぶから探す',
+    '<div class="srchbar"><span class="ic">🔍</span>' +
+      '<input id="sq" value="' + esc(SQ) + '" placeholder="顧客名・住所・電話・件名・メモ…" ' +
+      'oninput="setSQ(this.value)" onkeydown="if(event.key===\'Escape\'){SQ=\'\';closeM();}">' +
+      '<button class="x" onclick="SQ=\'\';setSQ(\'\');document.getElementById(\'sq\').focus()" title="消す">×</button></div>' +
+    '<div id="sres">' + searchResHtml() + '</div>',
+    '<div class="sp"></div><button class="btn" onclick="SQ=\'\';closeM()">閉じる</button>');
+}
+/* キーボードの「/」でも開く（入力中は邪魔しない） */
+document.addEventListener('keydown', e => {
+  const t = e.target, tag = (t && t.tagName) || '';
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+  if(e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey){ e.preventDefault(); openSearch(); }
+  else if((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)){ e.preventDefault(); openSearch(); }
+});
+
 function openNotes(){
   NOTES = notices();
   shell('お知らせ' + (NOTES.length ? '（' + NOTES.length + '件）' : ''),
@@ -1675,7 +1850,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.7</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.8</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1689,6 +1864,7 @@ function render(){
         vmenuHtml() +
         '<div class="sp"></div>' +
         '<span id="syncbtn">'+syncBtn()+'</span>' +
+        '<button class="btn srchbtn" onclick="openSearch()" title="ぜんぶから探す（キーボードは / でも開きます）">🔍</button>' +
         '<button class="btn bell" onclick="openNotes()" title="お知らせ">🔔<span id="bellct" class="bellct"></span></button>' +
         topRight() +
       '</div>' +
@@ -4373,7 +4549,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '3.7';
+const APP_VER = '3.8';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
