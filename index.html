@@ -1850,7 +1850,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.8</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v3.9</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2824,7 +2824,7 @@ function groupedTodos(list){
       '<i style="width:10px;height:10px;border-radius:50%;background:'+col+'"></i>' +
       '<b style="font-size:13px">'+esc(id?tcatName(id):'未分類')+'</b>' +
       '<span class="tag n">'+g.length+'</span>' +
-      (id ? '<button class="btn sm gh" style="color:var(--tx-3)" onclick="openCat(\''+id+'\')">編集</button>' : '') +
+      '<button class="btn sm" onclick="openTodo(null,null,\''+id+'\')" title="このカテゴリーでToDoを追加">＋ ToDo</button>' +
       '</div>' + g.map(todoRow).join(''));
   });
   return out.join('');
@@ -4153,10 +4153,10 @@ function delSch(){
 /* ============================================================
    ToDoモーダル（担当者：複数選択）
    ============================================================ */
-function openTodo(id, jobId){
+function openTodo(id, jobId, catId){
   if(id){ M = Object.assign({}, DB.todos.find(t=>t.id===id)); M.who = (M.who||[]).slice(); M.subs = (M.subs||[]).map(s=>Object.assign({},s)); }
   else M = {id:'', title:'', scope: jobId?'job':'shared', jobId: jobId||'', who: isMe()?[S.me]:[], due: today(),
-            prio:'中', done:false, cat: (S.todoF.cat!=='all'&&S.todoF.cat!=='none') ? S.todoF.cat : '',
+            prio:'中', done:false, cat: (catId!=null) ? catId : ((S.todoF.cat!=='all'&&S.todoF.cat!=='none') ? S.todoF.cat : ''),
             memo:'', subs:[], created: today()};
   drawTodo();
 }
