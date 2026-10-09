@@ -579,10 +579,10 @@ function importGTasks(d, owner){
 /* ============================================================
    同期先（最初から組み込んである設定）
    端末の設定が消えても、ここから自動で復元されます。
-   ※ 変えるときは、この2行と Apps Script 側の TOKEN を必ず合わせてください。
+   ※ 合言葉はここに書きません（公開リポジトリのため）。
+     合言葉は管理者が配る「セットアップリンク」で各端末に入ります。
    ============================================================ */
 const BUILTIN_URL   = 'https://script.google.com/macros/s/AKfycbxmxEyqeWQzVfJzmQ4-xrkWS6suvynEjIhwpl7LeoYAHgdIg-vxy8pBIFTZJaT-uYHM/exec';
-const BUILTIN_TOKEN = 'kongo2026';
 /* 取り込むGoogleカレンダー（担当者ID → カレンダーID）。入力しなくても最初から入っています */
 const BUILTIN_CAL = {
   s1: 'yutorio.design@gmail.com',   /* 木村 */
@@ -594,7 +594,7 @@ const stampNow_ = () => new Date().toISOString();
 function useBuiltin_(d){
   if(!d || !d.cfg) return;
   if(BUILTIN_URL && !d.cfg.gasUrl){
-    d.cfg.gasUrl = BUILTIN_URL; d.cfg.gasToken = BUILTIN_TOKEN;
+    d.cfg.gasUrl = BUILTIN_URL; d.cfg.gasToken = d.cfg.gasToken || '';
     d.cfg.setupDone = true; d.cfg.seen = true;
   }
   /* 木村・岡原のカレンダーは固定。空になっていたら、開くたびに必ず入れ直す */
@@ -1273,6 +1273,8 @@ const Sync = {
     }finally{ if(tid) clearTimeout(tid); }
     const txt = await res.text();
     let j; try{ j = JSON.parse(txt); }catch(e){ throw new Error(gasErr_(res.status, txt)); }
+    if(j && j.ok === false && /合言葉/.test(String(j.error||'')))
+      j.error = '合言葉が違います。管理者から届いた最新のセットアップリンクを開き直してください。';
     return j;
   },
   /* サーバーの更新番号だけを軽く確かめる。古い同期サーバーなら null */
@@ -1850,7 +1852,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v3.9</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.0</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1881,7 +1883,7 @@ function setActor(id){
   DB.cfg.actor = id; devSet({actor:id}); save(); render();
 }
 function resetSync(){
-  DB.cfg.gasUrl = BUILTIN_URL; DB.cfg.gasToken = BUILTIN_TOKEN;
+  DB.cfg.gasUrl = BUILTIN_URL;   /* 合言葉はそのまま残す */
   DB.cfg.setupDone = true; DB.cfg.seen = true;
   DB.cfg.cal = {}; DB.cfg.calSeed = ''; useBuiltin_(DB);
   save(); render(); startAutoSync(); toast('組み込みの設定に戻しました');
@@ -4549,7 +4551,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '3.8';
+const APP_VER = '4.0';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
