@@ -1852,7 +1852,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.0</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.1</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2914,8 +2914,9 @@ function purgeTodo(id){
   DB.todos = DB.todos.filter(x => x.id !== id); save(); render();
   toast('完全に削除しました', ()=>{ DB.todos.push(t); });
 }
-function toggleSub(id,i){ const t = DB.todos.find(x=>x.id===id); t.subs[i].d = !t.subs[i].d;
-  if(t.subs.every(s=>s.d) && !t.done){ t.done = true; t.doneAt = nowISO(); } save(); render(); }
+/* 小項目のチェックは横線を付け外しするだけ。大項目の完了は大項目のチェックボックスでのみ行う（v4.1） */
+function toggleSub(id,i){ const t = DB.todos.find(x=>x.id===id); if(!t || !t.subs[i]) return;
+  t.subs[i].d = !t.subs[i].d; save(); render(); }
 function todoToSch(id){
   const t = DB.todos.find(x=>x.id===id); const j = t.jobId ? jobById(t.jobId) : null;
   openSch(null, t.jobId||null, t.due||S.date, null, {title:t.title, who:(t.who||[]).slice(), note:t.memo||'', fromTodo:t.id, address:j?j.address:''});
@@ -4551,7 +4552,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '4.0';
+const APP_VER = '4.1';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
