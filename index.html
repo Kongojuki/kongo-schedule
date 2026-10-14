@@ -1852,7 +1852,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.1</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.2</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2685,6 +2685,8 @@ function jobsFooterHtml(){
 }
 function viewJobs(keepFocus){
   let list = visibleJobs().slice().reverse();
+  /* v4.2：完了した案件は通常の一覧から外し、下の「完了した案件」ボックスに入れる（工程で「完了」を選んだときだけ一覧にも出す） */
+  if(S.jobF.st !== '完了') list = list.filter(j => j.status !== '完了');
   if(S.jobF.st !== 'all'){
     if(S.jobF.st === 'open')      list = list.filter(j => OPEN_STAGES.indexOf(j.status) >= 0);
     else if(S.jobF.st === 'stuck')list = list.filter(isStuck);
@@ -2725,8 +2727,27 @@ function viewJobs(keepFocus){
         list.map(jobRow).join('') + '</tbody></table></div>'
         : '<div class="empty">該当する案件がありません</div>') +
     '</section>' +
+    doneJobsHtml() +
     jobsFooterHtml();
   if(keepFocus){ const i = document.getElementById('jq'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+}
+/* 完了した案件のボックス（担当者別のときは自分が関わる案件だけ） */
+function doneJobsHtml(){
+  let done = visibleJobs().filter(j => j.status === '完了');
+  if(S.jobF.q) done = done.filter(j => (j.customer+j.title+j.address+j.code).indexOf(S.jobF.q) >= 0);
+  done.sort((a,b) => String((b.stageAt||{})['完了']||'').localeCompare(String((a.stageAt||{})['完了']||'')));
+  const open = S.jobF.doneOpen ? ' open' : '';
+  return '<section class="panel"><details'+open+' ontoggle="S.jobF.doneOpen=this.open">' +
+    '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px">' +
+      '<span style="font-size:15px">📦</span><h2 style="margin:0;font-size:15px">完了した案件（'+done.length+'件）</h2>' +
+      '<span class="hint">工程が「完了」になった案件はここに入ります。タップで開閉</span></summary>' +
+    (done.length ? '<div style="overflow-x:auto"><table style="min-width:1080px"><thead><tr>' +
+      '<th>受付№</th><th>顧客・現場</th><th>内容</th><th>工程</th><th>責任者</th>' +
+      '<th style="text-align:right">見積</th><th style="text-align:right">請求</th><th style="text-align:right">入金残</th>' +
+      '<th>状況</th><th></th></tr></thead><tbody>' + done.map(jobRow).join('') + '</tbody></table></div>' +
+      '<div class="hintline" style="padding:8px 16px 12px">完了を取り消すときは、案件を開いて工程を「完了」以外に戻してください。一覧に戻ります。</div>'
+      : '<div class="empty">完了した案件はありません</div>') +
+    '</details></section>';
 }
 function jobRow(j){
   const bal = balOf(j), od = overdueDays(j), stuck = isStuck(j);
@@ -4552,7 +4573,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '4.1';
+const APP_VER = '4.2';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
