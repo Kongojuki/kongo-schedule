@@ -619,7 +619,6 @@ function seed(){
     {id:'s3', name:'福光', full:'',          role:'', mail:'', color:'#e8792b', active:true, ord:3},
     {id:'s4', name:'久保', full:'',          role:'', mail:'', color:'#8b5cf6', active:true, ord:4},
     {id:'s5', name:'中村', full:'',          role:'', mail:'', color:'#d63384', active:true, ord:5},
-    {id:'s7', name:'今村', full:'',          role:'', mail:'', color:'#0ea5e9', active:true, ord:6},
     {id:'s8', name:'川崎', full:'',          role:'', mail:'', color:'#b45309', active:true, ord:7}
   ];
   const t = today();
@@ -700,12 +699,34 @@ function load(){
       if(kw && kw.name === '川崎'){ kw.name = '事務所'; kw._u = stampNow_(); }
       const k = d.staff.find(x => x.id === 's1');
       if(k && k.full === '木村 大吾'){ k.full = ''; k._u = stampNow_(); }
-      if(!d.staff.some(x => x.id === 's7'))
-        d.staff.push({id:'s7', name:'今村', full:'', role:'', mail:'', color:'#0ea5e9', active:true, ord:6, _u:stampNow_()});
+      /* 今村（s7）は退職のため外す。過去の記録の名前は残すため、レコードは消さず「非表示」にする。
+         進行中の案件・これからの予定・未完了のToDoの担当からも外す（完了・失注の案件はそのまま） */
+      if(d.staffRev !== 'r6'){
+        const im = d.staff.find(x => x.id === 's7');
+        if(im && im.active !== false){ im.active = false; im._u = stampNow_(); }
+        const td = today();
+        d.jobs.forEach(j => {
+          if(j.status === '完了' || j.status === '失注') return;
+          if(Array.isArray(j.owners) && j.owners.indexOf('s7') >= 0){
+            j.owners = j.owners.filter(w => w !== 's7'); j._u = stampNow_();
+          }
+        });
+        d.sch.forEach(e => {
+          if((e.date||'') >= td && Array.isArray(e.who) && e.who.indexOf('s7') >= 0){
+            e.who = e.who.filter(w => w !== 's7'); e._u = stampNow_();
+          }
+        });
+        d.todos.forEach(t => {
+          if(!t.done && Array.isArray(t.who) && t.who.indexOf('s7') >= 0){
+            t.who = t.who.filter(w => w !== 's7'); t._u = stampNow_();
+          }
+        });
+        if(d.cfg.me === 's7') d.cfg.me = '';
+      }
       if(!d.staff.some(x => x.id === 's8'))
         d.staff.push({id:'s8', name:'川崎', full:'', role:'', mail:'', color:'#b45309', active:true, ord:7, _u:stampNow_()});
       d.staff.sort((a,b) => stOrd(a) - stOrd(b));
-      d.staffRev = 'r5';
+      d.staffRev = 'r6';
     }
     /* 旧形式（単一担当）からの移行 */
     d.sch.forEach(e => { if(!Array.isArray(e.who)) e.who = e.staffId ? [e.staffId] : []; });
@@ -1852,7 +1873,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.2</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.3</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -4573,7 +4594,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '4.2';
+const APP_VER = '4.3';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
