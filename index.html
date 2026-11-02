@@ -986,6 +986,9 @@ function logIt(type, targetId, title, field, from, to){
 /* ---------- 参照ヘルパ ---------- */
 const staffById = id => DB.staff.find(s => s.id === id);
 const jobById   = id => DB.jobs.find(j => j.id === id);
+/* v4.4：一覧は「更新日時（なければ作成日）」が新しいものを上に */
+const recentKey = r => String((r && (r._u || r.created)) || '');
+const byRecent  = (a,b) => recentKey(b).localeCompare(recentKey(a));
 const liveJobs  = () => DB.jobs.filter(j => !j.del);       /* 削除済みを除いた案件 */
 const queueJobs = () => DB.jobs.filter(j => !j.del && !j.todoAt);  /* 受付一覧に出す案件（ToDoへ移したものは外す） */
 const todoJobs  = () => DB.jobs.filter(j => !j.del && j.todoAt);
@@ -1873,7 +1876,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.3</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.4</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2034,7 +2037,7 @@ function viewBoard(){
   const d = S.date;
   const day = dayEvents(d);
   const dup = conflicts(d);
-  const unassigned = queueJobs().filter(j => j.status!=='完了' && !DB.sch.some(e => e.jobId === j.id));
+  const unassigned = queueJobs().filter(j => j.status!=='完了' && !DB.sch.some(e => e.jobId === j.id)).reverse().sort(byRecent);
   const urgent = day.filter(e => { const j = jobById(e.jobId); return j && j.prio === '至急'; }).length;
   const working = new Set(); day.forEach(e => e.who.forEach(w => working.add(w)));
   const myTodo = liveTodos().filter(t => t.due && t.due <= d);
@@ -2690,7 +2693,7 @@ function delListHtml(all){
     '</section>';
 }
 function jobsFooterHtml(){
-  const mv = todoJobs().slice().reverse();
+  const mv = todoJobs().slice().reverse().sort(byRecent);
   let h = '';
   if(mv.length)
     h += '<section class="panel"><header><h2>ToDoへ移した受付（'+mv.length+'件）</h2>' +
@@ -2705,7 +2708,7 @@ function jobsFooterHtml(){
   return h + delListHtml(false);
 }
 function viewJobs(keepFocus){
-  let list = visibleJobs().slice().reverse();
+  let list = visibleJobs().slice().reverse().sort(byRecent);
   /* v4.2：完了した案件は通常の一覧から外し、下の「完了した案件」ボックスに入れる（工程で「完了」を選んだときだけ一覧にも出す） */
   if(S.jobF.st !== '完了') list = list.filter(j => j.status !== '完了');
   if(S.jobF.st !== 'all'){
@@ -2803,7 +2806,7 @@ function viewTodo(){
   if(S.todoF.scope !== 'all') list = list.filter(t => t.scope === S.todoF.scope);
   if(!isMe() && S.todoF.who !== 'all') list = list.filter(t => (t.who||[]).includes(S.todoF.who));
   const rank = {'至急':0,'高':1,'中':2,'低':3};
-  if(tab === 'open') list.sort((a,b) => (a.due||'9999').localeCompare(b.due||'9999') || (rank[a.prio]??9)-(rank[b.prio]??9));
+  if(tab === 'open') list.sort((a,b) => byRecent(a,b) || (rank[a.prio]??9)-(rank[b.prio]??9));
 
   const t0 = today(), base = myTodos(liveTodos());
   const over = base.filter(t => t.due && t.due < t0).length;
@@ -4594,7 +4597,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '4.3';
+const APP_VER = '4.4';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
