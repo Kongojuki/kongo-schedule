@@ -470,24 +470,40 @@ const PRIOS = { '至急':'r', '高':'o', '中':'n', '低':'n' };
 /* 案件パイプライン（受付→入金までの一本道）。滞留日数の既定値つき */
 const STAGES = [
   {k:'受付',     sla:2,  g:'前工程'},
-  {k:'現調',     sla:3,  g:'前工程'},
+  {k:'現調済',   sla:3,  g:'前工程'},
   {k:'見積作成', sla:3,  g:'見積'},
-  {k:'見積提出', sla:14, g:'見積'},
+  {k:'見積提出済', sla:14, g:'見積'},
   {k:'受注',     sla:14, g:'工事'},
   {k:'施工中',   sla:30, g:'工事'},
   {k:'完工',     sla:7,  g:'請求', key:1},   // ★ 完工したのに請求していない＝取りこぼしの本丸
-  {k:'請求',     sla:40, g:'請求', key:1},   // ★ 請求したのに入金がない
-  {k:'入金',     sla:7,  g:'完了'},
-  {k:'完了',     sla:0,  g:'完了'},
+  {k:'請求済',   sla:40, g:'請求', key:1},   // ★ 請求したのに入金がない
+  {k:'入金済',   sla:7,  g:'完了'},
+  {k:'案件完了', sla:0,  g:'完了'},
   {k:'保留',     sla:30, g:'その他'},
   {k:'失注',     sla:0,  g:'その他'}
 ];
 const STAGE_KEYS = STAGES.map(x => x.k);
 const STATUS = STAGE_KEYS;
 const stageDef = k => STAGES.find(x => x.k === k) || STAGES[0];
-const STAGE_COLOR = {'受付':'#9aa3ae','現調':'#d4a017','見積作成':'#e8792b','見積提出':'#e8a020',
-  '受注':'#2f6fd0','施工中':'#17a2a2','完工':'#8b5cf6','請求':'#d63384','入金':'#22a06b',
-  '完了':'#6b7280','保留':'#9aa3ae','失注':'#c0c6cf'};
+const STAGE_COLOR = {'受付':'#9aa3ae','現調済':'#d4a017','見積作成':'#e8792b','見積提出済':'#e8a020',
+  '受注':'#2f6fd0','施工中':'#17a2a2','完工':'#8b5cf6','請求済':'#d63384','入金済':'#22a06b',
+  '案件完了':'#6b7280','保留':'#9aa3ae','失注':'#c0c6cf'};
+/* v4.5：工程名の変更（旧データは読み込み・同期のたびに新しい名前へ置き換える） */
+const STAGE_RENAME = {'現調':'現調済','見積提出':'見積提出済','請求':'請求済','入金':'入金済','完了':'案件完了'};
+function renameStage_(j){
+  if(!j) return false;
+  let ch = false;
+  if(STAGE_RENAME[j.status]){ j.status = STAGE_RENAME[j.status]; ch = true; }
+  if(j.stageAt && typeof j.stageAt === 'object'){
+    Object.keys(STAGE_RENAME).forEach(o => {
+      if(o in j.stageAt){ const n = STAGE_RENAME[o];
+        if(!j.stageAt[n] || j.stageAt[o] > j.stageAt[n]) j.stageAt[n] = j.stageAt[o];
+        delete j.stageAt[o]; ch = true; }
+    });
+  }
+  if(STAGE_RENAME[j._stageFrom]){ j._stageFrom = STAGE_RENAME[j._stageFrom]; ch = true; }
+  return ch;
+}
 const PAY_METHODS = ['振込','現金','クレジット','相殺','その他'];
 const money = n => '¥' + (Number(n)||0).toLocaleString('ja-JP');
 /* 住所→Googleマップ、電話番号→発信 */
@@ -673,6 +689,7 @@ function load(){
     const OLD = {'手配中':'受注','対応中':'施工中'};
     d.jobs.forEach(j => {
       if(OLD[j.status]) j.status = OLD[j.status];
+      renameStage_(j);
       if(STAGE_KEYS.indexOf(j.status) < 0) j.status = '受付';
       ['est','order','inv'].forEach(k => { if(typeof j[k] !== 'number') j[k] = 0; });
       ['invNo','invDate','due'].forEach(k => { if(typeof j[k] !== 'string') j[k] = ''; });
@@ -689,6 +706,7 @@ function load(){
     if(!Array.isArray(d.cfg.admins) || !d.cfg.admins.length) d.cfg.admins = ['s1'];
     if(!d.cfg.lock || typeof d.cfg.lock !== 'object') d.cfg.lock = {jobs:true, todos:true, pays:true, sch:false};
     if(typeof d.cfg.cashDays !== 'number') d.cfg.cashDays = 7;
+    if(d.cfg.sla && typeof d.cfg.sla === 'object') Object.keys(STAGE_RENAME).forEach(o => { if(o in d.cfg.sla){ if(!(STAGE_RENAME[o] in d.cfg.sla)) d.cfg.sla[STAGE_RENAME[o]] = d.cfg.sla[o]; delete d.cfg.sla[o]; } });
     /* 同期先が空なら、組み込みの設定で埋める（設定が消えても自動で戻る） */
     useBuiltin_(d);
     initSeq(d);
@@ -706,7 +724,7 @@ function load(){
         if(im && im.active !== false){ im.active = false; im._u = stampNow_(); }
         const td = today();
         d.jobs.forEach(j => {
-          if(j.status === '完了' || j.status === '失注') return;
+          if(j.status === '案件完了' || j.status === '失注') return;
           if(Array.isArray(j.owners) && j.owners.indexOf('s7') >= 0){
             j.owners = j.owners.filter(w => w !== 's7'); j._u = stampNow_();
           }
@@ -1384,6 +1402,7 @@ const Sync = {
       const got = await this.call('pull', null, 45000);
       if(!got.ok) throw new Error(got.error || '取得に失敗しました');
       this.merge(got.data);
+      (DB.jobs||[]).forEach(renameStage_);
       DB.rev = got.rev || 0;
       stampChanges();
       /* こちらに新しい入力が無ければ書き戻さない。
@@ -1848,7 +1867,7 @@ function render(){
   const v = VIEWS.find(x => x.id === S.view) || VIEWS[0];
   /* ページごとに背景色を変える（いまどの画面かがひと目でわかるように） */
   document.documentElement.setAttribute('data-view', v.id);
-  const openJobs = visibleJobs().filter(j => j.status !== '完了').length;
+  const openJobs = visibleJobs().filter(j => j.status !== '案件完了').length;
   const openTodo = myTodos(liveTodos()).length;
   const nAlert = alertCount();
   document.getElementById('app').innerHTML =
@@ -1876,7 +1895,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.4</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.5</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -1977,7 +1996,7 @@ function shiftMonth(n){
 /* ============================================================
    売掛・入金の計算
    ============================================================ */
-const OPEN_STAGES = STAGE_KEYS.filter(k => k!=='完了' && k!=='失注');
+const OPEN_STAGES = STAGE_KEYS.filter(k => k!=='案件完了' && k!=='失注');
 const paidOf   = j => (j.pays||[]).reduce((a,p) => a + (Number(p.amount)||0), 0);
 const balOf    = j => (Number(j.inv)||0) - paidOf(j);
 /* 未請求＝完工しているのに請求書が出ていない */
@@ -2037,7 +2056,7 @@ function viewBoard(){
   const d = S.date;
   const day = dayEvents(d);
   const dup = conflicts(d);
-  const unassigned = queueJobs().filter(j => j.status!=='完了' && !DB.sch.some(e => e.jobId === j.id)).reverse().sort(byRecent);
+  const unassigned = queueJobs().filter(j => j.status!=='案件完了' && !DB.sch.some(e => e.jobId === j.id)).reverse().sort(byRecent);
   const urgent = day.filter(e => { const j = jobById(e.jobId); return j && j.prio === '至急'; }).length;
   const working = new Set(); day.forEach(e => e.who.forEach(w => working.add(w)));
   const myTodo = liveTodos().filter(t => t.due && t.due <= d);
@@ -2314,7 +2333,7 @@ function openStat(kind){
       : '<div class="empty">至急の案件はありません</div>';
 
   }else if(kind === 'unassigned'){
-    const list = visibleJobs().filter(j => j.status!=='完了' && j.status!=='失注' && !DB.sch.some(e => e.jobId === j.id));
+    const list = visibleJobs().filter(j => j.status!=='案件完了' && j.status!=='失注' && !DB.sch.some(e => e.jobId === j.id));
     title = '未割り当ての受付（' + list.length + '件）';
     body = list.length ? list.map(j =>
       '<div class="todo" style="border-left:3px solid var(--accent)"><div class="bd">' +
@@ -2709,8 +2728,8 @@ function jobsFooterHtml(){
 }
 function viewJobs(keepFocus){
   let list = visibleJobs().slice().reverse().sort(byRecent);
-  /* v4.2：完了した案件は通常の一覧から外し、下の「完了した案件」ボックスに入れる（工程で「完了」を選んだときだけ一覧にも出す） */
-  if(S.jobF.st !== '完了') list = list.filter(j => j.status !== '完了');
+  /* v4.2：完了した案件は通常の一覧から外し、下の「完了した案件」ボックスに入れる（工程で「案件完了」を選んだときだけ一覧にも出す） */
+  if(S.jobF.st !== '案件完了') list = list.filter(j => j.status !== '案件完了');
   if(S.jobF.st !== 'all'){
     if(S.jobF.st === 'open')      list = list.filter(j => OPEN_STAGES.indexOf(j.status) >= 0);
     else if(S.jobF.st === 'stuck')list = list.filter(isStuck);
@@ -2757,19 +2776,19 @@ function viewJobs(keepFocus){
 }
 /* 完了した案件のボックス（担当者別のときは自分が関わる案件だけ） */
 function doneJobsHtml(){
-  let done = visibleJobs().filter(j => j.status === '完了');
+  let done = visibleJobs().filter(j => j.status === '案件完了');
   if(S.jobF.q) done = done.filter(j => (j.customer+j.title+j.address+j.code).indexOf(S.jobF.q) >= 0);
-  done.sort((a,b) => String((b.stageAt||{})['完了']||'').localeCompare(String((a.stageAt||{})['完了']||'')));
+  done.sort((a,b) => String((b.stageAt||{})['案件完了']||'').localeCompare(String((a.stageAt||{})['案件完了']||'')));
   const open = S.jobF.doneOpen ? ' open' : '';
   return '<section class="panel"><details'+open+' ontoggle="S.jobF.doneOpen=this.open">' +
     '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px">' +
       '<span style="font-size:15px">📦</span><h2 style="margin:0;font-size:15px">完了した案件（'+done.length+'件）</h2>' +
-      '<span class="hint">工程が「完了」になった案件はここに入ります。タップで開閉</span></summary>' +
+      '<span class="hint">工程が「案件完了」になった案件はここに入ります。タップで開閉</span></summary>' +
     (done.length ? '<div style="overflow-x:auto"><table style="min-width:1080px"><thead><tr>' +
       '<th>受付№</th><th>顧客・現場</th><th>内容</th><th>工程</th><th>責任者</th>' +
       '<th style="text-align:right">見積</th><th style="text-align:right">請求</th><th style="text-align:right">入金残</th>' +
       '<th>状況</th><th></th></tr></thead><tbody>' + done.map(jobRow).join('') + '</tbody></table></div>' +
-      '<div class="hintline" style="padding:8px 16px 12px">完了を取り消すときは、案件を開いて工程を「完了」以外に戻してください。一覧に戻ります。</div>'
+      '<div class="hintline" style="padding:8px 16px 12px">完了を取り消すときは、案件を開いて工程を「案件完了」以外に戻してください。一覧に戻ります。</div>'
       : '<div class="empty">完了した案件はありません</div>') +
     '</details></section>';
 }
@@ -3292,7 +3311,7 @@ function viewCfg(){
     '<section class="panel"><header><h2>工程ごとの目安日数（滞留アラート）</h2>' +
       '<span class="hint">この日数を超えると要対応として表示します</span></header><div class="pad">' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">' +
-      STAGES.filter(x=>x.k!=='完了'&&x.k!=='失注').map(x =>
+      STAGES.filter(x=>x.k!=='案件完了'&&x.k!=='失注').map(x =>
         '<div style="display:flex;align-items:center;gap:6px">' +
         '<span style="flex:1;font-size:12.5px"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+STAGE_COLOR[x.k]+';margin-right:6px"></i>'+x.k+'</span>' +
         '<input type="number" min="0" value="'+slaOf(x.k)+'" onchange="DB.cfg.sla=DB.cfg.sla||{};DB.cfg.sla[\''+x.k+'\']=+this.value||0;save();render()" ' +
@@ -3792,7 +3811,7 @@ function jobTabMoney(paid, bal){
         '<span>入金 <b class="mono">'+money(paid)+'</b></span>' +
         '<span>残高 <b class="mono" style="color:'+(bal>0?'var(--danger)':'var(--ok)')+'">'+money(bal)+'</b></span>' +
       '</div>' +
-      (M.inv>0 && bal<=0 && M.status!=='完了' ? '<button class="btn sm" onclick="jobStage(\'完了\')">入金が揃いました。工程を「完了」にする</button>' : '') +
+      (M.inv>0 && bal<=0 && M.status!=='案件完了' ? '<button class="btn sm" onclick="jobStage(\'案件完了\')">入金が揃いました。工程を「案件完了」にする</button>' : '') +
     '</div>';
 }
 function jobTabNote(){
