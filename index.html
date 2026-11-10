@@ -1008,8 +1008,9 @@ const jobById   = id => DB.jobs.find(j => j.id === id);
 const recentKey = r => String((r && (r._u || r.created)) || '');
 const byRecent  = (a,b) => recentKey(b).localeCompare(recentKey(a));
 const liveJobs  = () => DB.jobs.filter(j => !j.del);       /* 削除済みを除いた案件 */
-const queueJobs = () => DB.jobs.filter(j => !j.del && !j.todoAt);  /* 受付一覧に出す案件（ToDoへ移したものは外す） */
-const todoJobs  = () => DB.jobs.filter(j => !j.del && j.todoAt);
+/* v4.6：ToDoを作成しても案件は一覧に残す（旧版で「ToDoへ移した」案件も一覧に戻る） */
+const queueJobs = () => DB.jobs.filter(j => !j.del);
+const todoJobs  = () => DB.jobs.filter(j => !j.del && DB.todos.some(t => !t.del && t.jobId === j.id));
 const DELETED_SHOW_DAYS = 7;                               /* 通常ページで削除済みを見せる日数 */
 const recentDel = () => delJobs().filter(j => daysAgo(j.delAt) < DELETED_SHOW_DAYS);
 const delJobs   = () => DB.jobs.filter(j => j.del);
@@ -1895,7 +1896,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.5</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.6</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2712,7 +2713,7 @@ function delListHtml(all){
     '</section>';
 }
 function jobsFooterHtml(){
-  const mv = todoJobs().slice().reverse().sort(byRecent);
+  const mv = [];  /* v4.6：「ToDoへ移した受付」欄は廃止（案件は一覧に残る） */
   let h = '';
   if(mv.length)
     h += '<section class="panel"><header><h2>ToDoへ移した受付（'+mv.length+'件）</h2>' +
@@ -2762,7 +2763,7 @@ function viewJobs(keepFocus){
           STAGE_KEYS.map(k => '<option value="'+k+'"'+(S.jobF.st===k?' selected':'')+'>'+k+'</option>').join('') +
         '</select>' +
       '</div></header>' +
-      '<div class="hintline" style="padding:0 16px 8px">行をタップすると内容が開きます。ToDoに移した受付は、このページの一番下にまとめています。</div>' +
+      '<div class="hintline" style="padding:0 16px 8px">行をタップすると内容が開きます。案件を開いて「ToDoを作成」で、案件を残したまま担当者にToDoを渡せます。</div>' +
       (list.length ? '<div style="overflow-x:auto"><table style="min-width:1080px"><thead><tr>' +
         '<th>受付№</th><th>顧客・現場</th><th>内容</th><th>工程</th><th>責任者</th>' +
         '<th style="text-align:right">見積</th><th style="text-align:right">請求</th><th style="text-align:right">入金残</th>' +
@@ -3227,7 +3228,7 @@ function viewAdmin(){
       stat('削除済みの案件', delJobs().length, '件', delJobs().length?'var(--warn)':'var(--ok)') +
       stat('削除の依頼', reqJobs().length, '件', reqJobs().length?'var(--danger)':'var(--ok)') +
       stat('受付№の欠番', missingCodes().length, '件', missingCodes().length?'var(--danger)':'var(--ok)') +
-      stat('ToDoへ移した受付', todoJobs().length, '件', 'var(--info)') +
+      stat('ToDoを作成した案件', todoJobs().length, '件', 'var(--info)') +
     '</div>' +
     jobGuardHtml() +
     delListHtml(true) +
@@ -3736,9 +3737,7 @@ function drawJob(){
       '<button class="'+(tab===t[0]?'on':'')+'" onclick="M._tab=\''+t[0]+'\';drawJob()">'+t[1]+'</button>').join('') + '</div>' +
     (tab==='info' ? jobTabInfo() : tab==='money' ? jobTabMoney(paid, bal) : jobTabNote()),
     (M.id ? '<button class="btn dg" onclick="delJob()">'+(canDel('jobs')?'削除':'削除を依頼')+'</button>' : '') +
-    (M.id ? (M.todoAt
-      ? '<button class="btn" onclick="backToQueue()">受付一覧に戻す</button>'
-      : '<button class="btn" onclick="openToTodo()">ToDoに移す</button>') : '') +
+    (M.id ? '<button class="btn" onclick="openToTodo()">ToDoを作成</button>' : '') +
     '<div class="sp"></div><button class="btn" onclick="askClose()">キャンセル</button>' +
     '<button class="btn pri" onclick="saveJob()">保存</button>', true);
 }
@@ -3944,7 +3943,7 @@ function reqDelJob(){
   logIt('案件', j.id, j.customer+' '+j.title, '削除の依頼', j.status, String(why).trim());
   save(); closeM(); render(); toast('管理者に削除を依頼しました');
 }
-/* 案件を、担当者のToDoに移す（移したら受付一覧からは外れます） */
+/* v4.6：案件からToDoを作成する（案件は一覧に残す。何件でも作成可） */
 let TT = null;
 function openToTodo(){
   const j = DB.jobs.find(x => x.id === M.id); if(!j) return;
@@ -3953,9 +3952,9 @@ function openToTodo(){
   drawToTodo();
 }
 function drawToTodo(){
-  shell('ToDoに移す',
-    '<div class="hintline">この受付をToDoに変えて、担当者に渡します。移したあとは<b>案件の一覧には出なくなります</b>' +
-    '（金額・請求・入金の管理はそのまま残ります）。</div>' +
+  shell('ToDoを作成',
+    '<div class="hintline">この案件をもとにToDoを作成して、担当者に渡します。<b>案件はそのまま一覧に残ります</b>' +
+    '（工程・金額・請求・入金の管理も変わりません）。</div>' +
     f('やること','<input value="'+esc(TT.title)+'" oninput="TT.title=this.value">') +
     '<div class="sec"><h4>担当者（複数選べます）<span class="sp"></span>' +
       '<span class="hintline">'+(TT.who.length?esc(whoNames(TT.who))+'（'+TT.who.length+'名）':'未割当')+'</span></h4>' +
@@ -3970,20 +3969,20 @@ function drawToTodo(){
         'style="'+(TT.cat===c.id?'border-color:'+c.color+';background:'+c.color+';color:#fff':'')+'">'+esc(c.name)+'</button>').join('') + '</div>') +
     f('メモ','<textarea style="min-height:70px" oninput="TT.memo=this.value">'+esc(TT.memo)+'</textarea>'),
     '<div class="sp"></div><button class="btn" onclick="closeM()">キャンセル</button>' +
-    '<button class="btn pri" onclick="doToTodo()">ToDoに移す</button>');
+    '<button class="btn pri" onclick="doToTodo()">ToDoを作成</button>');
 }
 function ttWho(id){ TT.who = togWho(TT.who, id); drawToTodo(); }
 function doToTodo(){
   if(!TT.title.trim()){ alert('やることを入力してください'); return; }
-  if(!TT.who.length && !confirm('担当者が未割当です。このまま移しますか？')) return;
+  if(!TT.who.length && !confirm('担当者が未割当です。このまま作成しますか？')) return;
   const j = DB.jobs.find(x => x.id === TT.jobId); if(!j) return;
   const t = {id: uid('t'), title: TT.title.trim(), scope:'job', jobId: j.id, who: TT.who.slice(),
              due: TT.due, prio: TT.prio, done:false, cat: TT.cat, memo: TT.memo, subs: [], created: today()};
   DB.todos.push(t);
-  j.todoAt = nowISO(); j.todoBy = actor(); j.todoByName = actorName(); j.todoIds = (j.todoIds||[]).concat([t.id]);
-  logIt('案件', j.id, j.customer+' '+j.title, 'ToDoへ移動', j.status, whoNames(TT.who) || '未割当');
+  j.todoIds = (j.todoIds||[]).concat([t.id]);
+  logIt('案件', j.id, j.customer+' '+j.title, 'ToDoを作成', j.status, whoNames(TT.who) || '未割当');
   save(); TT = null; closeM(); render();
-  toast('ToDoに移しました（受付一覧からは外れました）', ()=>{ j.todoAt=''; DB.todos = DB.todos.filter(x=>x.id!==t.id); });
+  toast('ToDoを作成しました（案件は一覧に残っています）', ()=>{ DB.todos = DB.todos.filter(x=>x.id!==t.id); j.todoIds = (j.todoIds||[]).filter(x=>x!==t.id); });
 }
 function backToQueue(){
   const j = DB.jobs.find(x => x.id === M.id); if(!j) return;
