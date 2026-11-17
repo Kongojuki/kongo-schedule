@@ -1896,7 +1896,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.6</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.7</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2919,6 +2919,7 @@ function todoRow(t){
   const late = !t.done && t.due && t.due < t0;
   const soon = !t.done && t.due === t0;
   const doneN = (t.subs||[]).filter(x => x.d).length, allN = (t.subs||[]).length;
+  let lastDoneI = -1; (t.subs||[]).forEach((x,i) => { if(x.d) lastDoneI = i; });
   return '<div class="todo rowlink2'+(t.done?' done':'')+'" onclick="openTodo(\''+t.id+'\')" title="タップして開く">' +
     '<button class="ck" onclick="event.stopPropagation();'+(t.del?'restoreTodo':'toggleTodo')+'(\''+t.id+'\')" title="'+(t.del?'復元する':'完了にする')+'">'+(t.done?'✓':'')+'</button>' +
     '<div class="bd">' +
@@ -2937,9 +2938,10 @@ function todoRow(t){
         (t.del && t.delAt   ? '<span class="tag r">削除 '+esc(jDay(t.delAt).slice(5).replace('-','/'))+'</span>' : '') +
         '<span class="tag n">あと'+Math.max(0, keepDays() - daysAgo(t.del ? t.delAt : t.doneAt))+'日で自動消去</span>' +
         '</div>' : '') +
-      (allN ? '<div class="subs">' + t.subs.map((x,i) =>
+      (allN ? '<div class="subs">' + t.subs.map((x,i) => (x.d && i !== lastDoneI) ? '' :
         '<button class="sub'+(x.d?' done':'')+'" onclick="event.stopPropagation();toggleSub(\''+t.id+'\','+i+')">' +
         '<span class="ck">'+(x.d?'✓':'')+'</span>'+esc(x.t)+'</button>').join('') +
+        (doneN > 1 ? '<div class="hintline" style="margin:0">ほか完了 '+(doneN-1)+'件（開くと全て表示）</div>' : '') +
         '</div><div class="bar"><i style="width:'+Math.round(doneN/allN*100)+'%"></i></div>' : '') +
     '</div>' +
     '<div class="acts" onclick="event.stopPropagation()">' +
@@ -4256,7 +4258,8 @@ function drawTodo(){
       '<option value="">テンプレートを追加…</option>' + DB.tpl.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('') + '</select></h4>' +
       (M.subs.length ? M.subs.map((s,i) =>
         '<div style="display:flex;gap:6px;align-items:center">' +
-        '<input value="'+esc(s.t)+'" oninput="M.subs['+i+'].t=this.value" style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px">' +
+        '<button type="button" class="btn sm" title="完了／未完了を切り替え" onclick="M.subs['+i+'].d=!M.subs['+i+'].d;drawTodo()" style="min-width:34px">'+(s.d?'✓':'□')+'</button>' +
+        '<input value="'+esc(s.t)+'" oninput="M.subs['+i+'].t=this.value" style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px'+(s.d?';text-decoration:line-through;color:var(--tx-3)':'')+'">' +
         '<button class="btn sm dg" onclick="M.subs.splice('+i+',1);drawTodo()">×</button></div>').join('') : '<div class="hintline">項目がありません</div>') +
       '<button class="btn sm" onclick="M.subs.push({t:\'\',d:false});drawTodo()">＋ 項目を追加</button></div>',
     (M.id && canDel('todos') ? '<button class="btn dg" onclick="delTodo()">削除</button>' : '') +
