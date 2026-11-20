@@ -316,9 +316,11 @@ tbody tr:hover{background:var(--line-2)}
 .todo.done .ttl{text-decoration:line-through}
 .todo .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:5px;font-size:11px;color:var(--tx-3)}
 .todo .acts{display:flex;gap:5px;align-items:flex-start}
-.subs{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.subs{margin-top:8px;display:flex;flex-direction:column;gap:6px}
 .sub{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx-2)}
-.sub .ck{width:15px;height:15px;flex:0 0 15px;border-radius:4px;font-size:9px;margin:0}
+.sub .ck{width:15px;height:15px;flex:0 0 15px;border-radius:4px;font-size:9px;margin:0;position:relative;cursor:pointer}
+/* v4.8：チェックは四角の付近だけで反応（文字のクリックはToDoを開く） */
+.sub .ck::before{content:"";position:absolute;inset:-6px -7px -6px -9px}
 .sub.done{text-decoration:line-through;opacity:.55}
 .sub.done .ck{background:var(--ok);border-color:var(--ok)}
 .bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:7px}
@@ -1141,18 +1143,30 @@ function whoNames(ids){
 function toast(msg, undoFn){
   const el = document.getElementById('toast');
   if(undoFn){
-    UNDO = undoFn;
+    UNDOS.push({f:undoFn, at:Date.now()}); if(UNDOS.length > 20) UNDOS.shift();
     el.innerHTML = '<div class="toast">'+esc(msg) +
       '<button onclick="doUndo()" style="margin-left:14px;color:var(--accent);font-weight:700">元に戻す</button></div>';
-    clearTimeout(toast._t); toast._t = setTimeout(()=>{ el.innerHTML=''; UNDO=null; }, 8000);
+    clearTimeout(toast._t); toast._t = setTimeout(()=>{ el.innerHTML=''; }, 8000);
   }else{
     el.innerHTML = '<div class="toast">'+esc(msg)+'</div>';
     clearTimeout(toast._t); toast._t = setTimeout(()=>{ el.innerHTML=''; }, 2200);
   }
 }
-let UNDO = null;
-function doUndo(){ if(!UNDO) return; const f = UNDO; UNDO = null;
-  document.getElementById('toast').innerHTML = ''; f(); save(); render(); toast('元に戻しました'); }
+/* v4.8：「元に戻す」は履歴として保持（最大20件・10分以内）。Ctrl+Z（Macは⌘Z）でも1つずつ戻せる */
+let UNDOS = [];
+function doUndo(){
+  const lim = Date.now() - 10*60*1000;
+  UNDOS = UNDOS.filter(u => u.at >= lim);
+  const u = UNDOS.pop(); if(!u) return false;
+  document.getElementById('toast').innerHTML = ''; u.f(); save(); render(); toast('元に戻しました'); return true; }
+document.addEventListener('keydown', e => {
+  if(!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || (e.key !== 'z' && e.key !== 'Z')) return;
+  const t = e.target, tag = (t && t.tagName) || '';
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;  // 入力中は文字の取り消しを優先
+  if(document.getElementById('modal').innerHTML) return;   // 編集画面を開いている間は動かさない
+  e.preventDefault();
+  if(!doUndo()) toast('元に戻せる操作はありません');
+});
 
 /* ---------- 完了・ゴミ箱の保管 ---------- */
 const daysBetween = (a, b) => Math.max(0, Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00'))/86400000));
@@ -1896,7 +1910,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.7</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.8</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2939,8 +2953,9 @@ function todoRow(t){
         '<span class="tag n">あと'+Math.max(0, keepDays() - daysAgo(t.del ? t.delAt : t.doneAt))+'日で自動消去</span>' +
         '</div>' : '') +
       (allN ? '<div class="subs">' + t.subs.map((x,i) => (x.d && i !== lastDoneI) ? '' :
-        '<button class="sub'+(x.d?' done':'')+'" onclick="event.stopPropagation();toggleSub(\''+t.id+'\','+i+')">' +
-        '<span class="ck">'+(x.d?'✓':'')+'</span>'+esc(x.t)+'</button>').join('') +
+        '<div class="sub'+(x.d?' done':'')+'">' +
+        '<button type="button" class="ck" title="'+(x.d?'チェックを外す':'チェックを付ける')+'" onclick="event.stopPropagation();toggleSub(\''+t.id+'\','+i+')">'+(x.d?'✓':'')+'</button>' +
+        '<span>'+esc(x.t)+'</span></div>').join('') +
         (doneN > 1 ? '<div class="hintline" style="margin:0">ほか完了 '+(doneN-1)+'件（開くと全て表示）</div>' : '') +
         '</div><div class="bar"><i style="width:'+Math.round(doneN/allN*100)+'%"></i></div>' : '') +
     '</div>' +
@@ -2983,7 +2998,12 @@ function purgeTodo(id){
 }
 /* 小項目のチェックは横線を付け外しするだけ。大項目の完了は大項目のチェックボックスでのみ行う（v4.1） */
 function toggleSub(id,i){ const t = DB.todos.find(x=>x.id===id); if(!t || !t.subs[i]) return;
-  t.subs[i].d = !t.subs[i].d; save(); render(); }
+  const was = t.subs[i].d, name = t.subs[i].t;
+  t.subs[i].d = !was; save(); render();
+  toast(was ? 'チェックを外しました' : 'チェックを付けました', ()=>{
+    const u = DB.todos.find(x=>x.id===id), su = u && u.subs && (u.subs[i] && u.subs[i].t === name ? u.subs[i] : u.subs.find(z=>z.t===name));
+    if(su) su.d = was; });
+}
 function todoToSch(id){
   const t = DB.todos.find(x=>x.id===id); const j = t.jobId ? jobById(t.jobId) : null;
   openSch(null, t.jobId||null, t.due||S.date, null, {title:t.title, who:(t.who||[]).slice(), note:t.memo||'', fromTodo:t.id, address:j?j.address:''});
@@ -4618,7 +4638,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '4.4';
+const APP_VER = '4.8';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
