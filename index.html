@@ -650,7 +650,7 @@ function seed(){
   ];
   return importGTasks({
     staff: st, jobs, sch, todos, tpl, cats: [], imported:'gtasks1', log: [], deposits: [], closes: [], tomb: [], rev: 0, gcal: [],
-    reports: [], atd: [], spans: [], sec: [], scats: CATS_DEF.map((c,i) => Object.assign({}, c, {ord:i, active:true})),
+    reports: [], atd: [], spans: [], sec: [], jcats: [], scats: CATS_DEF.map((c,i) => Object.assign({}, c, {ord:i, active:true})),
     cfg: {
       apiKey:'', origin: ORIGIN_DEFAULT, travel: TRAVEL_TABLE_DEFAULT,
       autoTravel:true, defBuffer:15, wStart:8, wEnd:19, theme:'light', keepDays:30, actor:'', gasUrl:'', gasToken:'', lastSync:'',
@@ -665,6 +665,25 @@ function markSeed(d){
   ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans','scats'].forEach(k =>
     (d[k]||[]).forEach(r => { if(!r._u) r._u = SEED_U; }));
   return d;
+}
+
+/* v4.9：案件カテゴリーを「予定の区分」から独立させる。
+   はじめの一回だけ、いま案件で使っている区分を同じIDのまま写す（既存の案件はそのまま引き継がれる）。
+   更新時刻は「一番古い」扱いにして、ほかの端末で先に直した名前や色を上書きしないようにする */
+function jcatsFrom_(d){
+  const sc = (d.scats && d.scats.length ? d.scats : CATS_DEF).slice().sort((a,b) => (a.ord||0) - (b.ord||0));
+  const used = {}; (d.jobs||[]).forEach(j => { if(j && j.cat) used[j.cat] = 1; });
+  const out = [];
+  sc.forEach(c => { if(used[c.id]){ out.push({id:c.id, name:c.name, color:c.color}); delete used[c.id]; } });
+  Object.keys(used).forEach(id => out.push({id:id, name:id, color:'#9aa3ae'}));
+  if(!out.length) sc.filter(c => c.active !== false).forEach(c => out.push({id:c.id, name:c.name, color:c.color}));
+  out.forEach((c,i) => { c.ord = i; c.active = true; });
+  return out;
+}
+function migrateJcats_(d){
+  if(Array.isArray(d.jcats) && d.jcats.length) return;
+  if(!(d.jobs||[]).length){ d.jcats = []; return; }   /* 新しい端末は同期で受け取る */
+  d.jcats = jcatsFrom_(d).map(c => Object.assign(c, {_u: SEED_U}));
 }
 
 let DB = load();
@@ -684,7 +703,8 @@ function load(){
     const base = markSeed(seed());
     d.cfg = Object.assign({}, base.cfg, d.cfg||{});
     if(!d.cfg.travel || !d.cfg.travel.length) d.cfg.travel = TRAVEL_TABLE_DEFAULT;
-    ['staff','jobs','sch','todos','tpl','reports','atd','cats','log','deposits','closes','tomb','spans','scats','sec'].forEach(k => { if(!Array.isArray(d[k])) d[k] = base[k]||[]; });
+    ['staff','jobs','sch','todos','tpl','reports','atd','cats','log','deposits','closes','tomb','spans','scats','sec','jcats'].forEach(k => { if(!Array.isArray(d[k])) d[k] = base[k]||[]; });
+    migrateJcats_(d);
     if(typeof d.rev !== 'number') d.rev = 0;
     if(!Array.isArray(d.gcal)) d.gcal = [];
     if(!d.cfg.cal || typeof d.cfg.cal !== 'object') d.cfg.cal = {};
@@ -769,7 +789,7 @@ function load(){
   }
 }
 /* 同期対象のコレクション */
-const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans','scats','sec'];
+const COLL = ['jobs','sch','todos','staff','cats','tpl','deposits','reports','atd','spans','scats','sec','jcats'];
 const APPEND = ['log','closes'];          // 追記のみ（idで重複排除）
 let SNAP = null;                          // key -> JSON（前回保存時の内容）
 
@@ -1049,6 +1069,32 @@ function catOptions(sel){
   let h = catList().map(c => '<option value="'+esc(c.id)+'"'+(sel===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('');
   if(sel && !catById(sel)) h = '<option value="'+esc(sel)+'" selected>'+esc(sel)+'</option>' + h;
   return h;
+}
+/* ---------- 案件カテゴリー（v4.9：予定の区分とは別に、設定画面で編集・追加できます） ---------- */
+const jcats     = () => (DB.jcats && DB.jcats.length ? DB.jcats : jcatsFrom_(DB));
+const jcatList  = () => jcats().filter(c => c.active !== false)
+                    .slice().sort((a,b) => (a.ord||0) - (b.ord||0));
+const jcatById  = id => jcats().find(c => c.id === id) || catById(id);
+const jcatName  = id => (jcatById(id)||{}).name || id || '';
+const jcatColor = id => (jcatById(id)||{}).color || '#9aa3ae';
+function jcatOptions(sel){
+  let h = jcatList().map(c => '<option value="'+esc(c.id)+'"'+(sel===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('');
+  if(sel && !jcatList().some(c => c.id === sel)) h = '<option value="'+esc(sel)+'" selected>'+esc(jcatName(sel))+'</option>' + h;
+  return h;
+}
+const jcatDefault = () => { const l = jcatList(); return (l.find(c => c.id === '修理') || l[0] || {id:'修理'}).id; };
+/* 案件から予定を作るとき：同じ名前の「予定の区分」があればそれを使う */
+function schCatOfJob(j){
+  if(!j) return '修理';
+  const nm = jcatName(j.cat), hit = catList().find(c => c.name === nm);
+  if(hit) return hit.id;
+  if(catList().some(c => c.id === j.cat)) return j.cat;
+  return (catList().find(c => c.id === 'その他') || catList()[0] || {id:'その他'}).id;
+}
+function ensureJcats(){
+  if(!Array.isArray(DB.jcats) || !DB.jcats.length) DB.jcats = jcatsFrom_(DB);
+  DB.jcats.forEach((c,i) => { if(typeof c.ord !== 'number') c.ord = i; });
+  return DB.jcats;
 }
 /* 保存先を用意する（初回だけ初期値から作る） */
 function ensureScats(){
@@ -1527,7 +1573,7 @@ function searchAll(q){
     const notes = (j.notes||[]).map(n => n.text||n.body||'').join(' ');
     const pays  = (j.pays||[]).map(x => (x.memo||'') + ' ' + (x.way||'')).join(' ');
     if(!sHit([j.code, j.customer, j.title, j.detail, j.address, j.phone, j.invNo, notes, pays].join(' '), words)) return;
-    add('案件', catColor(j.cat), {
+    add('案件', jcatColor(j.cat), {
       title: (j.customer||'') + ' ' + (j.title||''),
       meta: [j.code, j.status + (j.del ? '・削除済み' : ''), j.address, whoNames(j.owners)].filter(Boolean).join('　'),
       go: "go('jobs');openJob('" + j.id + "')"
@@ -1910,7 +1956,7 @@ function render(){
           '<option value="">未設定</option>' +
           activeStaff().map(s => '<option value="'+s.id+'"'+(actor()===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('') +
         '</select></div>' +
-      '<div class="side-foot"><span>試作版 v4.8</span><span id="syncst"></span>' +
+      '<div class="side-foot"><span>試作版 v4.9</span><span id="syncst"></span>' +
         '<button onclick="toggleTheme()" title="表示切替">◐</button></div>' +
     '</aside>' +
     '<div class="main">' +
@@ -2162,7 +2208,7 @@ function viewBoard(){
       (unassigned.length ? '<div class="pad">' + unassigned.map(j =>
         '<div class="todo rowlink2" onclick="openJob(\''+j.id+'\')" title="タップして開く"><div class="bd"><div class="ttl">'+esc(j.customer)+' — '+esc(j.title)+'</div>' +
         '<div class="meta"><span class="tag '+(PRIOS[j.prio]||'n')+'">'+esc(j.prio)+'</span>' +
-        '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(catName(j.cat))+'</span>' +
+        '<span class="tag n" style="background:'+jcatColor(j.cat)+'22;color:'+jcatColor(j.cat)+'">'+esc(jcatName(j.cat))+'</span>' +
         '<span>'+esc(j.address||'住所未登録')+'</span></div></div>' +
         '<div class="acts" onclick="event.stopPropagation()">' +
         '<button class="btn sm pri" onclick="openSch(null,\''+j.id+'\')">予定を作る</button></div></div>').join('') + '</div>'
@@ -2354,7 +2400,7 @@ function openStat(kind){
       '<div class="todo" style="border-left:3px solid var(--accent)"><div class="bd">' +
       '<div class="ttl">'+esc(j.customer)+' — '+esc(j.title)+'</div><div class="meta">' +
       '<span class="tag '+(PRIOS[j.prio]||'n')+'">'+esc(j.prio)+'</span>' +
-      '<span class="tag n" style="background:'+catColor(j.cat)+'22;color:'+catColor(j.cat)+'">'+esc(catName(j.cat))+'</span>' +
+      '<span class="tag n" style="background:'+jcatColor(j.cat)+'22;color:'+jcatColor(j.cat)+'">'+esc(jcatName(j.cat))+'</span>' +
       '<span class="tag n">'+esc(j.status)+'</span>' +
       (j.address?'<span>📍'+esc(j.address)+'</span>':'') + '</div></div>' +
       '<div class="acts"><button class="btn sm" onclick="closeM();openJob(\''+j.id+'\')">編集</button>' +
@@ -2666,7 +2712,7 @@ function importExt(evId, staffId){
     end:   g.allDay ? '10:00' : g.end,
     allDay: !!g.allDay, endDate: g.endDate || g.date,
     who: [g.staffId],
-    cat: guess ? guess.cat : 'その他',
+    cat: guess ? schCatOfJob(guess) : 'その他',
     tent: false,
     address: g.location || (guess ? guess.address : ''),
     out: 0, back: 0,
@@ -3318,6 +3364,7 @@ function viewCfg(){
       '</tbody></table></section>' +
 
     scatCfgHtml() +
+    jcatCfgHtml() +
 
     '<section class="panel"><header><h2>操作者と記録</h2></header><div class="pad">' +
       '<div class="grid2">' +
@@ -3531,7 +3578,6 @@ function renderTT(){
 function addTT(){ DB.cfg.travel.push({kw:'', m:20}); save(); renderTT(); }
 /* ---------- 予定の区分（ボードの帯の色）の編集 ---------- */
 const scatUsed = id => DB.sch.filter(e => e.cat === id).length +
-                      DB.jobs.filter(j => !j.del && j.cat === id).length +
                       (DB.spans||[]).filter(p => p.cat === id).length;
 function setScatColor(id, v){
   ensureScats(); const c = catById(id); if(!c) return;
@@ -3605,6 +3651,82 @@ function scatCfgHtml(){
     '</tbody></table>' +
     '<div class="hintline">色を変えると、すでに入っている予定の帯もすぐに新しい色になります。' +
     '名前を変えても、その区分で登録済みの予定はそのまま引き継がれます。' +
+    'この設定は同期され、ほかの端末にも反映されます。</div>' +
+    '</div></section>';
+}
+/* ---------- 案件カテゴリーの編集（v4.9） ---------- */
+const jcatUsed = id => DB.jobs.filter(j => j.cat === id).length;
+function setJcatColor(id, v){
+  const c = ensureJcats().find(x => x.id === id); if(!c) return;
+  c.color = v; save(); render();
+}
+function setJcatName(id, v){
+  const c = ensureJcats().find(x => x.id === id); if(!c) return;
+  const nm = String(v||'').trim(); if(!nm || nm === c.name){ render(); return; }
+  if(DB.jcats.some(x => x.id !== id && x.name === nm)){ alert('同じ名前のカテゴリーがすでにあります。'); render(); return; }
+  logIt('設定', 'jcat:'+id, '案件カテゴリー', '名前', c.name, nm);
+  c.name = nm; save(); render();
+}
+function moveJcat(id, dir){
+  ensureJcats();
+  const list = jcatList(), i = list.findIndex(c => c.id === id), j = i + dir;
+  if(i < 0 || j < 0 || j >= list.length) return;
+  list.forEach((c,k) => { c.ord = k; });
+  list[i].ord = j; list[j].ord = i;
+  DB.jcats.sort((a,b) => (a.ord||0) - (b.ord||0));
+  save(); render();
+}
+function addJcat(){
+  ensureJcats();
+  const inp = document.getElementById('jcnew');
+  const nm = String(inp ? inp.value : '').trim();
+  if(!nm){ alert('追加するカテゴリーの名前を入力してください。'); if(inp) inp.focus(); return; }
+  if(DB.jcats.some(x => x.name === nm)){ alert('同じ名前のカテゴリーがすでにあります。'); return; }
+  const col = document.getElementById('jcnewc');
+  const mx = DB.jcats.reduce((a,c) => Math.max(a, c.ord||0), -1);
+  DB.jcats.push({id: uid('jc'), name: nm, color: (col && col.value) || '#6b7280', ord: mx + 1, active:true});
+  logIt('設定', 'jcat', '案件カテゴリー', '追加', '', nm);
+  save(); render(); toast('案件カテゴリー「'+nm+'」を追加しました');
+}
+function delJcat(id){
+  const c = ensureJcats().find(x => x.id === id); if(!c) return;
+  const n = jcatUsed(id);
+  if(n){ alert('このカテゴリーは '+n+' 件の案件で使われているため削除できません。\n名前や色の変更はできます。'); return; }
+  if(DB.jcats.length <= 1){ alert('カテゴリーは最低1つ必要です。'); return; }
+  if(!confirm('案件カテゴリー「'+c.name+'」を削除します。よろしいですか？')) return;
+  DB.jcats = DB.jcats.filter(x => x.id !== id);
+  logIt('設定', 'jcat:'+id, '案件カテゴリー', '削除', c.name, '');
+  save(); render();
+}
+function jcatCfgHtml(){
+  const list = jcatList();
+  const nextCol = CAT_PALETTE[list.length % CAT_PALETTE.length];
+  return '<section class="panel"><header><h2>案件カテゴリー</h2>' +
+    '<span class="hint">案件（受付）を登録するときに選ぶ種類です。予定の区分とは別に管理します</span></header>' +
+    '<div class="pad">' +
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">' +
+      '<input id="jcnew" placeholder="新しいカテゴリー名（例：リフォーム）" onkeydown="if(event.key===\'Enter\'&&!event.isComposing)addJcat()" ' +
+        'style="flex:1;min-width:180px;max-width:280px;padding:7px 9px;border:1px solid var(--line);border-radius:7px">' +
+      '<input id="jcnewc" type="color" value="'+nextCol+'" title="色" style="width:48px;height:32px;border:none;background:none;cursor:pointer">' +
+      '<button class="btn sm pri" onclick="addJcat()">＋ カテゴリーを追加</button></div>' +
+    '<table><thead><tr><th>並び</th><th>色</th><th>見本</th><th>カテゴリーの名前</th><th>案件数</th><th></th></tr></thead><tbody>' +
+    list.map((c,i) => {
+      const n = jcatUsed(c.id);
+      return '<tr>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn sm gh" onclick="moveJcat(\''+esc(c.id)+'\',-1)"'+(i===0?' disabled':'')+'>▲</button> ' +
+          '<button class="btn sm gh" onclick="moveJcat(\''+esc(c.id)+'\',1)"'+(i===list.length-1?' disabled':'')+'>▼</button></td>' +
+        '<td><input type="color" value="'+c.color+'" onchange="setJcatColor(\''+esc(c.id)+'\',this.value)" ' +
+          'style="width:48px;height:32px;border:none;background:none;cursor:pointer"></td>' +
+        '<td><span class="tag n" style="background:'+c.color+'22;color:'+c.color+'">'+esc(c.name)+'</span></td>' +
+        '<td><input value="'+esc(c.name)+'" onchange="setJcatName(\''+esc(c.id)+'\',this.value)" ' +
+          'style="width:150px;padding:5px;border:1px solid var(--line);border-radius:7px"></td>' +
+        '<td class="mono">'+n+'件</td>' +
+        '<td>' + (n ? '<span class="hintline">使用中は削除できません</span>'
+                    : '<button class="btn sm dg" onclick="delJcat(\''+esc(c.id)+'\')">削除</button>') + '</td></tr>';
+    }).join('') +
+    '</tbody></table>' +
+    '<div class="hintline">名前や色を変えると、そのカテゴリーで登録済みの案件にもすぐ反映されます。' +
     'この設定は同期され、ほかの端末にも反映されます。</div>' +
     '</div></section>';
 }
@@ -3745,7 +3867,7 @@ function togWho(list, id){
    ============================================================ */
 function openJob(id){
   const j = id ? JSON.parse(JSON.stringify(jobById(id))) : {id:'', code:nextCode(),
-    customer:'', address:'山口県下関市', phone:'', cat:'修理', title:'', detail:'', prio:'中', status:'受付',
+    customer:'', address:'山口県下関市', phone:'', cat:jcatDefault(), title:'', detail:'', prio:'中', status:'受付',
     owners: isMe()?[S.me]:[], est:0, order:0, inv:0, invNo:'', invDate:'', due:'', pays:[], notes:[],
     stageAt:{}, created:today()};
   M = j; M._tab = 'info'; drawJob();
@@ -3766,7 +3888,7 @@ function drawJob(){
 function jobTabInfo(){
   return '<div class="grid2">' +
       f('受付№','<input value="'+esc(M.code)+'" oninput="M.code=this.value">') +
-      f('区分','<select onchange="M.cat=this.value">'+catOptions(M.cat)+'</select>') +
+      f('カテゴリー','<select onchange="M.cat=this.value">'+jcatOptions(M.cat)+'</select>') +
     '</div>' +
     f('顧客・現場名','<input value="'+esc(M.customer)+'" oninput="M.customer=this.value" placeholder="例）○○マンション 203号室">') +
     f('住所','<div style="display:flex;gap:6px">' +
@@ -3863,7 +3985,7 @@ function addNote(){
 function f(label, inner){ return '<div class="f"><label>'+label+'</label>'+inner+'</div>'; }
 function saveJob(){
   if(!M.customer.trim()){ alert('顧客・現場名を入力してください'); return; }
-  if(!M.title.trim()) M.title = M.cat;
+  if(!M.title.trim()) M.title = jcatName(M.cat);
   const label = M.customer + ' ' + M.title;
   const tabTmp = M._tab, from = M._stageFrom; delete M._tab; delete M._stageFrom;
   if(M.id){
@@ -3880,7 +4002,7 @@ function saveJob(){
     DB.jobs.push(M); logIt('案件', M.id, label, '新規受付', '', M.status);
     sendMail('【新規受付】' + M.customer + '　' + M.title,
       ['新しい受付が登録されました。', '',
-       '顧客・現場：' + M.customer, '件名：' + M.title, '区分：' + M.cat, '優先度：' + M.prio,
+       '顧客・現場：' + M.customer, '件名：' + M.title, 'カテゴリー：' + jcatName(M.cat), '優先度：' + M.prio,
        '住所：' + (M.address||'—'), '電話：' + (M.phone||'—'),
        '内容：' + (M.detail||'—'),
        '責任者：' + ((M.owners||[]).length ? whoNames(M.owners) : '未定'),
@@ -4034,7 +4156,7 @@ function openSch(id, jobId, date, staffId, pre){
     M = {id:'', jobId: jobId||'', title: (pre&&pre.title) || (j ? j.customer+' '+j.title : ''),
       date: date || S.date, start:'09:00', end:'10:00', allDay:false, endDate:'', guests:'', gid:'', gcalId:'',
       who: (pre&&pre.who) || (staffId ? [staffId] : (isMe() ? [S.me] : [])),
-      cat: j ? j.cat : '修理', tent:false,
+      cat: j ? schCatOfJob(j) : '修理', tent:false,
       address: (pre&&pre.address) || (j ? j.address : ''),
       out:0, back:0, note:(pre&&pre.note)||'', fromTodo:(pre&&pre.fromTodo)||''};
     if(M.address) setTimeout(()=>calcNow(true), 60);
@@ -4183,7 +4305,7 @@ function drawSchLink(){ const e = document.getElementById('schmap'); if(e) e.inn
 function schWho(id){ M.who = togWho(M.who, id); drawSch(); }
 function syncJob(){
   const j = M.jobId ? jobById(M.jobId) : null;
-  if(j){ M.address = j.address; M.cat = j.cat; if(!M.title.trim()) M.title = j.customer+' '+j.title; }
+  if(j){ M.address = j.address; M.cat = schCatOfJob(j); if(!M.title.trim()) M.title = j.customer+' '+j.title; }
   drawSch(); if(j && j.address) calcNow(true);
 }
 function calcNow(silent){
@@ -4638,7 +4760,7 @@ function wizDone(){
    ・置いてあるファイルが新しくなったら、下に「更新する」ボタンを出す
    ・保存してある予定・ToDo・名前・同期設定はそのまま残る
    ============================================================ */
-const APP_VER = '4.8';
+const APP_VER = '4.9';
 let NEWVER = '';
 function paintUpd(){
   let el = document.getElementById('updbar');
